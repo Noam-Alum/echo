@@ -1,0 +1,31 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
+
+# Go
+worker/bin/
+worker/coverage.out
+/worker/compute-worker
+/worker/services-worker
+.tools/
+
+# Web
+web/node_modules/
+web/dist/
+web/coverage/
+
+# Build and local state
+dist/
+.coverage
+htmlcov/
+*.log
+.env

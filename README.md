@@ -10,11 +10,12 @@ E.C.H.O workers reconcile that desired state into Kubernetes. Kueue owns GPU quo
 Kubernetes scheduler places pods on nodes — **E.C.H.O never counts free GPUs and never picks a
 node.** Organizational users and groups enforce access, priorities, limits and fair sharing.
 
-## Status: pre-implementation
+## Status: implementation scaffold
 
-**There is no code in this repository yet.** Not a stub, not a skeleton — nothing. What exists is
-the specification, a full transcription of it, every open design question answered, and a build
-order.
+The repository now contains the minimum buildable control-plane, worker, web, and deployment
+projects. Runtime behavior is deliberately limited to identifying each process and exiting; product
+behavior starts in later implementation steps. The specification, its transcription, resolved
+design questions, and the build order remain the architectural source of truth.
 
 That is deliberate. The design has a lot of load-bearing detail (fencing tokens, a state machine
 enforced in PostgreSQL, four separate counters that are easy to conflate), and it was cheaper to
@@ -26,10 +27,13 @@ settle that on paper than to discover it in a rewrite. If you are here to write 
 | Specification (13 pages, authoritative) | `docs/specification/E.C.H.O.pdf` | Fixed |
 | Transcription, section by section | `docs/context/01`–`05` | Complete |
 | Design decisions D1–D27, defaults V1–V6 | `docs/context/06-decisions.md` | Complete |
-| Build order as ~39 reviewable PRs | `docs/context/07-implementation-plan.md` | Complete, not started |
+| Build order as ~39 reviewable PRs | `docs/context/07-implementation-plan.md` | Complete, step 01 in progress |
 | What is still undecided | `docs/context/99-open-questions.md` | Live — read before deciding anything |
 | Agent and reviewer context | `CLAUDE.md` | Live |
-| Source code | — | Does not exist |
+| Python control plane | `control-plane/` | Scaffolded |
+| Go workers | `worker/` | Scaffolded |
+| Web UI | `web/` | Scaffolded |
+| Future cluster manifests | `deploy/` | Placeholder only |
 
 ## Read in this order
 
@@ -76,6 +80,27 @@ Full rationale for each of these is in `06-decisions.md`; the summary table is i
 **Training is the first vertical slice**, because it has a clear beginning and a terminal result.
 Research and Inference come after.
 
+## Repository layout and validation
+
+- `control-plane/` contains one Python package with separate `echo-api`, `echo-planner`, and
+  `echo-scanner` entrypoints. FastAPI is installed for future work, but no HTTP server or routes are
+  implemented yet.
+- `worker/` contains separate `compute-worker` and `services-worker` Go binaries.
+- `web/` contains the React, TypeScript, and Vite application, which builds to static assets.
+- `deploy/` is reserved for future cluster manifests and currently contains no runtime resources.
+
+Install Python 3.12+, Go 1.26+, Node.js 22+, `uv`, npm, and Make, then run the complete local
+validation suite from the repository root:
+
+```bash
+make ci
+```
+
+That exact command installs locked dependencies; runs Ruff, strict mypy, a non-mutating Go format
+check, pinned golangci-lint, ESLint, and strict TypeScript; runs all three test suites; and builds the
+Python package, both Go binaries, and the web static assets. GitHub Actions invokes the same
+`make ci` command.
+
 ## How to use these documents
 
 Three rules, and they matter more than they look.
@@ -103,7 +128,7 @@ bring-your-own-image namespaces, and four questions about the managed inference 
 work touches one of those, you are making a decision, not an implementation choice: record it in
 `06-decisions.md` as a new entry and remove it from the open list.
 
-## Contributing, once there is code
+## Contributing
 
 The conventions are set out per-step in `07-implementation-plan.md` → Rules for every step. In short:
 

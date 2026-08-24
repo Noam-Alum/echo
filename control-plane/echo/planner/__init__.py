@@ -1,0 +1,2 @@
+"""Placement-validation planner entrypoint."""
+
