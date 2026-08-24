@@ -1,0 +1,66 @@
+<svg viewBox="0 0 960 434" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .p{rx:8;stroke-width:1.3}
+ .hd{font-size:13px;font-weight:700;fill:#fff}
+ .hs{font-size:9px;fill:#fff;opacity:.85;letter-spacing:.1em}
+ .rw{rx:4;fill:#fff;stroke-width:1.2}
+ .k{font-size:8.5px;letter-spacing:.12em;font-weight:700;fill:#8994a3}
+ .v{font-size:10.5px;fill:#232a35}
+ .a{stroke:#9aa4b2;stroke-width:1.3;fill:none;marker-end:url(#ar)}
+</style>
+
+<rect class="p" x="16" y="16" width="450" height="400" fill="#fdfbf7" stroke="#c99a4e"/>
+<path d="M16,16 h450 a8,8 0 0 1 8,8 v32 h-466 v-32 a8,8 0 0 1 8,-8 z" fill="#8a5a12"/>
+<text class="hd" x="34" y="38">Research &amp; Training</text><text class="hs" x="34" y="51">BRING YOUR OWN IMAGE</text>
+
+<rect class="rw" x="36" y="74" width="410" height="66" stroke="#c99a4e"/>
+<text class="k" x="50" y="92">THE USER SUPPLIES</text>
+<text class="v" x="50" y="110">A complete container image — tools, framework, training code.</text>
+<text class="v" x="50" y="128">E.C.H.O never opens it.</text>
+<rect x="384" y="86" width="48" height="42" rx="3" fill="#3d4551" stroke="#232a35"/>
+<text style="font-size:8px;fill:#fff;text-anchor:middle" x="408" y="103">opaque</text>
+<text style="font-size:8px;fill:#fff;text-anchor:middle" x="408" y="115">image</text>
+<path class="a" d="M241,140 L241,162"/>
+
+<rect class="rw" x="36" y="166" width="410" height="58" stroke="#c99a4e"/>
+<text class="k" x="50" y="184">E.C.H.O VALIDATES</text>
+<text class="v" x="50" y="202">The request around the image: policy, quota, duration,</text>
+<text class="v" x="50" y="217">GPU count, cluster eligibility. Not the contents.</text>
+<path class="a" d="M241,224 L241,246"/>
+
+<rect class="rw" x="36" y="250" width="410" height="52" stroke="#c99a4e"/>
+<text class="k" x="50" y="268">E.C.H.O RUNS</text>
+<text class="v" x="50" y="288">Job (Training) · StatefulSet or interactive Pod (Research)</text>
+<path class="a" d="M241,302 L241,324"/>
+
+<rect class="rw" x="36" y="328" width="410" height="66" stroke="#c99a4e"/>
+<text class="k" x="50" y="346">THE USER RECEIVES</text>
+<text class="v" x="50" y="364">A time-bound job result, or an interactive session.</text>
+<text class="v" x="50" y="382">Namespace-scoped cluster access, for Research where needed.</text>
+
+<rect class="p" x="494" y="16" width="450" height="400" fill="#f7fbfb" stroke="#7fb3b4"/>
+<path d="M494,16 h450 a8,8 0 0 1 8,8 v32 h-466 v-32 a8,8 0 0 1 8,-8 z" fill="#2c7a7b"/>
+<text class="hd" x="512" y="38">Inference</text><text class="hs" x="512" y="51">MANAGED SERVICE</text>
+
+<rect class="rw" x="514" y="74" width="410" height="66" stroke="#7fb3b4"/>
+<text class="k" x="528" y="92">E.C.H.O OWNS</text>
+<text class="v" x="528" y="110">A versioned, prebuilt runtime image containing vLLM and</text>
+<text class="v" x="528" y="128">the platform components. The client supplies no image.</text>
+<path class="a" d="M719,140 L719,162"/>
+
+<rect class="rw" x="514" y="166" width="410" height="58" stroke="#7fb3b4"/>
+<text class="k" x="528" y="184">THE CLIENT SUPPLIES</text>
+<text class="v" x="528" y="202">A declarative specification: weight references, adapters,</text>
+<text class="v" x="528" y="217">vLLM configuration, GPU requirements.</text>
+<path class="a" d="M719,224 L719,246"/>
+
+<rect class="rw" x="514" y="250" width="410" height="52" stroke="#7fb3b4"/>
+<text class="k" x="528" y="268">E.C.H.O MATERIALIZES</text>
+<text class="v" x="528" y="288">Pod · ConfigMap · model storage access · Service · route</text>
+<path class="a" d="M719,302 L719,324"/>
+
+<rect class="rw" x="514" y="328" width="410" height="66" stroke="#2c7a7b" stroke-width="1.8"/>
+<text class="k" x="528" y="346">THE CLIENT RECEIVES</text>
+<text class="v" x="528" y="364">A stable inference endpoint.</text>
+<text class="v" x="528" y="382" style="fill:#9b2c2c">No Kubernetes access. No Pod access.</text>
+</svg>

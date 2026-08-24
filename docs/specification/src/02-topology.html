@@ -1,0 +1,210 @@
+<h1><span class="n">3</span>Cluster Topology and Isolation</h1>
+
+<h2><span class="n">3.1</span>Multi-Cluster Model</h2>
+<p>E.C.H.O is a multi-cluster control plane. Every registered cluster carries the same namespace layout,
+the same controller identities and the same Kueue structure, so a plan is portable in shape even though
+its target is fixed. Kueue quota is per-cluster; there is no cross-cluster borrowing.</p>
+
+<div class="req"><span class="rid">R-04</span>
+<p>Each registered cluster <span class="kw">MUST</span> have an entry in the cluster registry recording
+its identifier, API endpoint, credential reference and available GPU flavors. An operation
+<span class="kw">MUST NOT</span> be planned onto a cluster absent from the registry.</p></div>
+
+<h2><span class="n">3.2</span>Namespace Architecture</h2>
+<p>Tenancy is per project. Each project receives one namespace per workload type in each cluster, named
+<code>echo-&lt;project&gt;-&lt;type&gt;</code>. A single additional namespace, <code>echo-access</code>, holds
+the controller identities and nothing else.</p>
+
+<figure>
+SVG_NS
+<figcaption><b>Figure 2.</b> Namespace and identity model within one cluster. The controller identities
+live apart from the namespaces they act on, and each is bound only to the namespaces its workload type
+occupies &mdash; so a fault in the compute reconciler cannot reach an inference service.</figcaption>
+</figure>
+
+<div class="req"><span class="rid">R-05</span>
+<p>Workload namespaces <span class="kw">MUST</span> be named <code>echo-&lt;project&gt;-&lt;type&gt;</code>
+where <em>type</em> is one of <code>training</code>, <code>research</code> or <code>inference</code>.</p></div>
+
+<div class="req"><span class="rid">R-06</span>
+<p>Selection of E.C.H.O-managed objects <span class="kw">MUST</span> use labels, not namespace-name
+parsing. Every managed object <span class="kw">MUST</span> carry:</p>
+<pre><span class="k">metadata:</span>
+  <span class="k">labels:</span>
+    <span class="v">echo.erez.io/project</span>: <span class="s">vision</span>
+    <span class="v">echo.erez.io/resource-type</span>: <span class="s">research</span>
+    <span class="v">echo.erez.io/managed</span>: <span class="s">"true"</span></pre>
+</div>
+
+<h3><span class="n">3.2.1</span>What the namespace boundary carries</h3>
+<p>Per-project namespaces are the unit that carries GPU, CPU and memory quota; Secrets and PVCs;
+NetworkPolicy; Kubernetes RBAC; the Kueue <code>LocalQueue</code>; workload visibility and logs; and
+deletion blast radius. A shared per-type namespace would forfeit all of these.</p>
+
+<div class="note"><span class="lbl">Namespaces are an authorization boundary, not a resource one</span>
+<p>A namespace does not stop a training Pod from landing on the same node as an inference Pod and
+starving it on CPU, memory or PCIe bandwidth, and it gives no control-plane isolation whatsoever. Node
+separation (Section 3.4) is what provides resource isolation; the namespace provides the authorization
+boundary.</p></div>
+
+<h2><span class="n">3.3</span>Controller Identities</h2>
+<p>Three ServiceAccounts live in <code>echo-access</code>. Their permissions are disjoint by design.</p>
+
+<table>
+<tr><th style="width:31%">Identity</th><th style="width:31%">Bound to</th><th>Principal verbs</th></tr>
+<tr><td><code>echo-compute-controller</code></td><td>every <code>*-training</code> and <code>*-research</code> namespace</td>
+    <td>Job, StatefulSet, Pod, PVC, ConfigMap</td></tr>
+<tr><td><code>echo-services-controller</code></td><td>every <code>*-inference</code> namespace</td>
+    <td>Deployment, Service, HPA, ConfigMap, Ingress/HTTPRoute, model-storage Secret</td></tr>
+<tr><td><code>echo-project-controller</code></td><td>cluster-scoped</td>
+    <td>Namespace, RoleBinding, ResourceQuota, NetworkPolicy, LocalQueue</td></tr>
+</table>
+
+<div class="req"><span class="rid">R-07</span>
+<p>The three controller identities <span class="kw">MUST</span> hold disjoint permissions.
+<code>echo-project-controller</code> <span class="kw">MUST NOT</span> hold verbs on Pods, Jobs or
+Deployments, and the two workload identities <span class="kw">MUST NOT</span> hold verbs on Namespaces or
+RoleBindings. An identity that can create namespaces must not be able to run workloads, and an identity
+that runs workloads must not be able to mint its own permissions.</p></div>
+
+<div class="req"><span class="rid">R-08</span>
+<p>Roles and RoleBindings <span class="kw">MUST</span> be created in the target namespace with subjects
+referring to the ServiceAccounts in <code>echo-access</code>.</p></div>
+
+<p>Because a Pod carries exactly one ServiceAccount, each identity corresponds to a separate worker
+Deployment. This is desirable independently: inference reconciliation is low-volume and steady, while
+training is bursty, and the two should scale apart.</p>
+
+<h2><span class="n">3.4</span>Node Pools</h2>
+<div class="req"><span class="rid">R-09</span>
+<p>Inference nodes <span class="kw">MUST</span> be tainted, and only inference workloads
+<span class="kw">MUST</span> tolerate that taint. Inference workloads
+<span class="kw">MUST</span> run under a non-preemptible priority class.</p></div>
+
+<p>Training and research share the remaining pool. Their schedules are complementary &mdash; research is
+interactive and bursty during working hours, training is batch and absorbs nights and weekends &mdash; and
+research runs at a preemptible priority below training so that idle training capacity is usable without
+becoming unreclaimable.</p>
+
+<div class="note"><span class="lbl">Consequence</span>
+<p>Research and Training run user-supplied images (Section 1.2) on shared nodes, co-tenant with other
+projects' code. Containment is the namespace template's responsibility: Pod Security admission level,
+prohibition of privileged containers and <code>hostPath</code> mounts, and a seccomp profile. See
+Section 14.</p></div>
+
+<h2><span class="n">3.5</span>Project Provisioning</h2>
+<p>A project is desired state in PostgreSQL. A worker reconciles it into the cluster objects that
+constitute the project, from a template.</p>
+
+<div class="req"><span class="rid">R-10</span>
+<p>Project provisioning <span class="kw">MUST</span> be performed by a worker reconciling a project row,
+not by the API. The control plane <span class="kw">MUST NOT</span> call the Kubernetes API.</p></div>
+
+<div class="req"><span class="rid">R-11</span>
+<p>The provisioner <span class="kw">MUST</span> create, for each project and each cluster: the three
+workload namespaces; RoleBindings binding the appropriate controller identities; a ResourceQuota; a
+NetworkPolicy; a <code>LocalQueue</code> in each namespace; and the project's model-storage access. It
+<span class="kw">MUST</span> be idempotent, and <span class="kw">MUST</span> use Server-Side Apply with an
+explicit field manager.</p></div>
+
+<p>Project creation is therefore eventually consistent: the API returns before the namespaces exist, and
+the operation's readiness is observable through the project's status.</p>
+
+<h1><span class="n">4</span>Domain Model</h1>
+
+<h2><span class="n">4.1</span>Operations and Attempts</h2>
+<p>A logical operation may have several physical attempts:</p>
+<pre>Training operation
+├── Attempt 1 → failed because node disappeared
+├── Attempt 2 → failed because image was invalid
+└── Attempt 3 → succeeded</pre>
+
+<div class="req"><span class="rid">R-12</span>
+<p>Each attempt <span class="kw">MUST</span> receive the deterministic identity
+<code>echo-&lt;operation-id&gt;-a&lt;attempt-number&gt;</code>.</p></div>
+
+<div class="req"><span class="rid">R-13</span>
+<p>Retry creation <span class="kw">MUST</span> occur in a single PostgreSQL transaction that increments
+the attempt number. A worker <span class="kw">MUST NOT</span> independently invent a new attempt. This
+applies equally to an operator-initiated retry (Section 10.6).</p></div>
+
+<p>Determinism is what makes crash recovery safe: a worker that dies after creating Kubernetes objects
+leaves objects that the next worker can find by name and adopt, rather than duplicating.</p>
+
+<h2><span class="n">4.2</span>Custom Resources</h2>
+<p>Two custom resources model an operation in a cluster. The parent is operation-scoped and survives
+attempts; the child is attempt-scoped and is replaced with each one.</p>
+
+<figure>
+SVG_CR
+<figcaption><b>Figure 3.</b> Resource hierarchy and the authority split. Anything that must outlive an
+attempt &mdash; placement, availability, the serving endpoint &mdash; belongs to
+<code>EchoOperation</code>. Anything specific to one execution belongs to <code>EchoExecution</code>.</figcaption>
+</figure>
+
+<h3><span class="n">4.2.1</span>EchoOperation</h3>
+<p>Operation-scoped. It owns the observed placement, the operation's availability, and a pointer to the
+current attempt.</p>
+<pre><span class="k">status:</span>
+  <span class="k">phase</span>: <span class="s">Active</span>
+  <span class="k">placement:</span>
+    <span class="k">generation</span>: <span class="v">1</span>
+    <span class="k">cluster</span>: <span class="s">cluster-a</span>
+    <span class="k">nodeName</span>: <span class="s">gpu-node-07</span>
+    <span class="k">nodeUID</span>: <span class="s">...</span>
+  <span class="k">currentExecution:</span>
+    <span class="k">name</span>: <span class="s">echo-7d91a2-a2</span>
+  <span class="k">conditions:</span>
+    - <span class="k">type</span>: <span class="s">Ready</span>
+      <span class="k">status</span>: <span class="s">"False"</span>
+      <span class="k">reason</span>: <span class="s">PinnedNodeUnavailable</span>
+    - <span class="k">type</span>: <span class="s">Degraded</span>
+      <span class="k">status</span>: <span class="s">"True"</span>
+      <span class="k">reason</span>: <span class="s">PinnedNodeUnavailable</span></pre>
+
+<h3><span class="n">4.2.2</span>EchoExecution</h3>
+<p>Attempt-scoped. It anchors one execution and owns the workload objects created for it.</p>
+<pre><span class="k">apiVersion</span>: <span class="s">operations.echo.erez.io/v1alpha1</span>
+<span class="k">kind</span>: <span class="s">EchoExecution</span>
+<span class="k">metadata:</span>
+  <span class="k">name</span>: <span class="s">echo-7d91a2-a1</span>
+  <span class="k">namespace</span>: <span class="s">echo-vision-training</span>
+  <span class="k">labels:</span>
+    <span class="v">echo.erez.io/operation-id</span>: <span class="s">7d91a2</span>
+    <span class="v">echo.erez.io/attempt</span>: <span class="s">"1"</span>
+<span class="k">spec:</span>
+  <span class="k">operationID</span>: <span class="s">7d91a2</span>
+  <span class="k">operationGeneration</span>: <span class="v">4</span>
+  <span class="k">type</span>: <span class="s">Training</span>
+  <span class="k">desiredState</span>: <span class="s">Running</span>
+  <span class="k">queue</span>: <span class="s">vision-compute</span>
+  <span class="k">priorityClass</span>: <span class="s">standard-training</span>
+  <span class="k">resources:</span>
+    <span class="k">gpu:</span>
+      <span class="k">flavor</span>: <span class="s">a100-80gb</span>
+      <span class="k">count</span>: <span class="v">8</span>
+  <span class="k">workload:</span>
+    <span class="k">image</span>: <span class="s">registry.example.com/training/model:v12</span>
+    <span class="k">command</span>: <span class="s">[...]</span></pre>
+
+<div class="note"><span class="lbl">The workload stanza is type-dependent</span>
+<p>Above, <code>image</code> is the <em>submitter's</em> image &mdash; the Research and Training model. For
+Inference, <code>image</code> is E.C.H.O's own versioned runtime and <code>command</code> is not
+user-supplied at all; a declarative model specification takes its place. See Section 11.3.</p></div>
+
+<div class="req"><span class="rid">R-14</span>
+<p>Both custom resources are derived snapshots. Neither <span class="kw">MAY</span> be treated as the
+system of record for intent. PostgreSQL is authoritative for what was requested; the cluster is
+authoritative for what is running.</p></div>
+
+<div class="req"><span class="rid">R-15</span>
+<p>A new <code>EchoExecution</code> <span class="kw">MUST</span> inherit its placement from its parent
+<code>EchoOperation</code>, so that a pinned node survives attempt replacement.</p></div>
+
+<div class="req"><span class="rid">R-16</span>
+<p>Objects whose identity must outlive an attempt &mdash; in particular the inference Service and its
+external route &mdash; <span class="kw">MUST</span> be owned by <code>EchoOperation</code>. Objects specific
+to one execution <span class="kw">MUST</span> be owned by <code>EchoExecution</code>.</p></div>
+
+<p>Owner references cascade: <code>EchoOperation</code> owns <code>EchoExecution</code>, which owns the
+Jobs, Services and PVCs of its attempt. Deleting the operation garbage-collects the whole tree.</p>

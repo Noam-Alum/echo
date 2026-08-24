@@ -1,0 +1,94 @@
+<h1><span class="n">13</span>Observability and Accounting</h1>
+
+<h2><span class="n">13.1</span>Usage Accounting</h2>
+<p>Raw GPU telemetry is collected by Prometheus and DCGM. E.C.H.O periodically aggregates it into durable
+usage records in PostgreSQL; it does not duplicate the raw series.</p>
+
+<div class="req"><span class="rid">R-75</span>
+<p>Training and Research usage <span class="kw">MUST</span> be recorded per operation attempt and
+finalized when the attempt reaches a terminal state. Inference usage <span class="kw">MUST</span> be
+recorded continuously per model operation, because inference has no natural terminal state.</p></div>
+
+<div class="req"><span class="rid">R-76</span>
+<p>Allocated GPU time and observed utilization <span class="kw">MUST</span> be stored separately.</p></div>
+
+<div class="note"><span class="lbl">Why these are not one number</span>
+<p>Chargeback bills allocation; efficiency review reads utilization. Collapsing them hides the case the
+platform exists to prevent &mdash; an operation holding eight GPUs at four per cent for six hours is
+fully accounted for and almost entirely wasted. Only the pair makes that visible.</p></div>
+
+<h2><span class="n">13.2</span>Retention</h2>
+<div class="req"><span class="rid">R-77</span>
+<p><code>operation_event</code>, <code>compute_operation</code> history and the usage tables
+<span class="kw">MUST</span> be partitioned by month and retained. Cold partitions
+<span class="kw">MAY</span> be detached and archived; they <span class="kw">MUST NOT</span> be discarded,
+because audit history is a first-class product of the platform.</p></div>
+
+<div class="req"><span class="rid">R-78</span>
+<p>Partition maintenance <span class="kw">MUST</span> be monitored. A partition job that stops silently
+is invisible until the hot set has grown by years.</p></div>
+
+<h1><span class="n">14</span>Security Considerations</h1>
+
+<h2><span class="n">14.1</span>Credential Handling</h2>
+<p>Because authentication is LDAP-only, the API handles user credentials directly rather than delegating
+to an identity provider. This is a deliberate constraint of the deployment environment and it carries
+obligations.</p>
+
+<div class="req"><span class="rid">R-79</span>
+<p>Credentials <span class="kw">MUST NOT</span> be logged and <span class="kw">MUST NOT</span> be
+persisted in any form. All directory traffic <span class="kw">MUST</span> be encrypted, and bind attempts
+<span class="kw">MUST</span> be rate-limited (R-25).</p></div>
+
+<h2><span class="n">14.2</span>Multi-Tenancy</h2>
+<p>Research and Training run user-supplied images. The platform's isolation posture rests on the
+namespace boundary, the node pool split, and the admission policy applied to those namespaces.</p>
+
+<div class="req"><span class="rid">R-80</span>
+<p>Workload namespaces <span class="kw">MUST</span> enforce a Pod Security admission level. Privileged
+containers and <code>hostPath</code> mounts <span class="kw">MUST NOT</span> be permitted, and a seccomp
+profile <span class="kw">MUST</span> be applied.</p></div>
+
+<div class="req"><span class="rid">R-81</span>
+<p>A NetworkPolicy <span class="kw">MUST</span> be applied to every workload namespace, so that a
+project's workloads cannot reach another project's Pods or Services.</p></div>
+
+<h2><span class="n">14.3</span>Blast Radius</h2>
+<p>The three controller identities exist so that a compromise of one reconciler is contained. This
+property depends entirely on R-07 holding: if the identities are permitted to overlap "temporarily", the
+isolation is gone and nothing will report its absence.</p>
+
+<div class="req"><span class="rid">R-82</span>
+<p>Cluster credentials held by the worker pool <span class="kw">MUST</span> be scoped to the
+ServiceAccounts of Section 3.3 and <span class="kw">MUST NOT</span> be cluster-admin. Rotation
+<span class="kw">MUST</span> be possible without redeploying the control plane.</p></div>
+
+<h1><span class="n">15</span>Failure Handling</h1>
+<p>Each row below is a failure the design anticipates and the mechanism that contains it. Where the
+mechanism is a requirement stated elsewhere, that requirement is the normative text.</p>
+
+<table>
+<tr><th style="width:38%">Failure</th><th>Recovery</th></tr>
+<tr><td>API retries submission</td><td>Idempotency key returns the original operation (R-28)</td></tr>
+<tr><td>Two workers claim simultaneously</td><td>Row locking with <code>SKIP LOCKED</code> (R-38)</td></tr>
+<tr><td>Worker pauses past its lease</td><td>Fencing token rejects the stale update (R-39, R-40)</td></tr>
+<tr><td>Worker crashes after creating objects</td><td>Next worker finds the deterministic object and adopts it (R-44)</td></tr>
+<tr><td>Transaction fails</td><td>Retry the complete transaction; nothing was partially applied (R-29)</td></tr>
+<tr><td>PostgreSQL failover</td><td>Reconnect through the stable writer endpoint; reclaim expired leases</td></tr>
+<tr><td>Kubernetes API unavailable</td><td>Back off and keep the operation pending</td></tr>
+<tr><td>Watch event duplicated</td><td>Idempotent upsert with a unique event key</td></tr>
+<tr><td>Watch event missed</td><td>Periodic full reconciliation (R-45)</td></tr>
+<tr><td>Cancellation races with startup</td><td>The newest desired generation removes the workload (R-55)</td></tr>
+<tr><td>Manual modification of a workload</td><td>Server-Side Apply field ownership detects or overwrites owned fields (R-42)</td></tr>
+<tr><td>Read replica lags</td><td>Replicas are never used for correctness decisions (R-03)</td></tr>
+<tr><td>Placement never succeeds</td><td>Placement deadline expires; <code>Failed</code> with <code>PlacementFailed</code> (R-52)</td></tr>
+<tr><td>Pinned inference node lost</td><td>Non-terminal <code>Unavailable</code>; recovery policy decides (R-61, R-62)</td></tr>
+<tr><td>Directory unavailable</td><td>Authorization reads the local mirror; submissions continue (Section 6.1.1)</td></tr>
+<tr><td>User removed from the directory</td><td>Sync revokes their sessions at the next cycle (R-27)</td></tr>
+</table>
+
+<div class="note"><span class="lbl">The pattern behind the table</span>
+<p>Almost every row resolves to one of three mechanisms: a database constraint, a fencing token, or
+re-deriving state from observation. None of them requires components to agree with each other, which is
+why they hold under partition &mdash; and why an implementation that replaces any of them with
+coordination will be correct in testing and wrong in production.</p></div>

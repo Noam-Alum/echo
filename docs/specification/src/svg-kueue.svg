@@ -1,0 +1,54 @@
+<svg viewBox="0 0 960 392" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .b{fill:#fff;stroke-width:1.3;rx:4}
+ .t{font-size:11.5px;font-weight:600;text-anchor:middle;fill:#141821}
+ .s{font-size:9.5px;text-anchor:middle;fill:#5f6b7a}
+ .g{font-size:10px;letter-spacing:.13em;font-weight:700}
+ .e{stroke-width:1.3;fill:none}
+ .el{font-size:9.5px;fill:#5f6b7a;text-anchor:middle}
+</style>
+
+<text class="g" x="20" y="16" fill="#9b2c2c">COMPUTE COHORT</text>
+<rect x="20" y="24" width="470" height="196" rx="8" fill="#fdf3f3" stroke="#c98080" stroke-width="1.2"/>
+<rect class="b" x="40" y="42" width="196" height="46" stroke="#9b2c2c"/>
+<text class="t" x="138" y="62">ClusterQueue</text><text class="s" x="138" y="78">vision-compute</text>
+<rect class="b" x="274" y="42" width="196" height="46" stroke="#9b2c2c"/>
+<text class="t" x="372" y="62">ClusterQueue</text><text class="s" x="372" y="78">nlp-compute</text>
+<path class="e" d="M240,58 L268,58" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+<path class="e" d="M268,74 L240,74" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+<text class="el" x="255" y="104" fill="#9b2c2c">borrow · preempt</text>
+
+<rect class="b" x="40" y="128" width="96" height="40" stroke="#c98080"/><text class="s" x="88" y="146">LocalQueue</text><text class="s" x="88" y="160">*-training</text>
+<rect class="b" x="144" y="128" width="96" height="40" stroke="#c98080"/><text class="s" x="192" y="146">LocalQueue</text><text class="s" x="192" y="160">*-research</text>
+<rect class="b" x="274" y="128" width="96" height="40" stroke="#c98080"/><text class="s" x="322" y="146">LocalQueue</text><text class="s" x="322" y="160">*-training</text>
+<rect class="b" x="378" y="128" width="96" height="40" stroke="#c98080"/><text class="s" x="426" y="146">LocalQueue</text><text class="s" x="426" y="160">*-research</text>
+<path class="e" d="M88,124 L88,92" stroke="#c98080" marker-end="url(#ar)"/>
+<path class="e" d="M192,124 L192,92" stroke="#c98080" marker-end="url(#ar)"/>
+<path class="e" d="M322,124 L322,92" stroke="#c98080" marker-end="url(#ar)"/>
+<path class="e" d="M426,124 L426,92" stroke="#c98080" marker-end="url(#ar)"/>
+<rect class="b" x="40" y="182" width="434" height="26" fill="#f7fafc" stroke="#9aa4b2"/>
+<text class="s" x="257" y="199">shared compute node pool — untainted · research preemptible below training</text>
+
+<text class="g" x="510" y="16" fill="#2c7a7b">INFERENCE COHORT</text>
+<rect x="510" y="24" width="430" height="196" rx="8" fill="#f0f7f7" stroke="#7fb3b4" stroke-width="1.2"/>
+<rect class="b" x="530" y="42" width="176" height="46" stroke="#2c7a7b"/>
+<text class="t" x="618" y="62">ClusterQueue</text><text class="s" x="618" y="78">vision-inference</text>
+<rect class="b" x="744" y="42" width="176" height="46" stroke="#2c7a7b"/>
+<text class="t" x="832" y="62">ClusterQueue</text><text class="s" x="832" y="78">nlp-inference</text>
+<text class="el" x="725" y="66" fill="#2c7a7b">no</text><text class="el" x="725" y="78" fill="#2c7a7b">preemption</text>
+
+<rect class="b" x="570" y="128" width="96" height="40" stroke="#7fb3b4"/><text class="s" x="618" y="146">LocalQueue</text><text class="s" x="618" y="160">*-inference</text>
+<rect class="b" x="784" y="128" width="96" height="40" stroke="#7fb3b4"/><text class="s" x="832" y="146">LocalQueue</text><text class="s" x="832" y="160">*-inference</text>
+<path class="e" d="M618,124 L618,92" stroke="#7fb3b4" marker-end="url(#ar)"/>
+<path class="e" d="M832,124 L832,92" stroke="#7fb3b4" marker-end="url(#ar)"/>
+<rect class="b" x="530" y="182" width="390" height="26" fill="#f7fafc" stroke="#9aa4b2"/>
+<text class="s" x="725" y="199">inference node pool — tainted · whole GPUs only · non-preemptible priority</text>
+
+<rect x="20" y="248" width="920" height="76" rx="6" fill="#fbfcfd" stroke="#d7dce3" stroke-width="1.2"/>
+<text style="font-size:10.5px;fill:#232a35" x="40" y="272">A ClusterQueue must not span both pools. Admission would then reserve quota backed by nodes the workload</text>
+<text style="font-size:10.5px;fill:#232a35" x="40" y="290">cannot tolerate — the workload would be admitted and then remain unschedulable.</text>
+<text style="font-size:10.5px;fill:#232a35" x="40" y="312">Borrowing is per cohort. There is no borrowing between cohorts, and none between clusters.</text>
+
+<text style="font-size:9.5px;fill:#5f6b7a" x="20" y="356">Team fair-sharing lives in the ClusterQueues and their cohort. LocalQueue is namespace-scoped, so it is the per-project entry point,</text>
+<text style="font-size:9.5px;fill:#5f6b7a" x="20" y="370">and the namespace that holds it is also what carries the project's quota, NetworkPolicy and RBAC.</text>
+</svg>

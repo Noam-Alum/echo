@@ -1,0 +1,65 @@
+<svg viewBox="0 0 960 452" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .b{fill:#fff;stroke-width:1.3;rx:4}
+ .t{font-size:12px;font-weight:600;text-anchor:middle;fill:#141821}
+ .s{font-size:9.5px;text-anchor:middle;fill:#5f6b7a}
+ .g{font-size:10px;letter-spacing:.14em;font-weight:700}
+ .e{stroke-width:1.35;fill:none}
+ .el{font-size:9.5px;fill:#5f6b7a}
+ .nt{font-size:10.5px;font-weight:600;text-anchor:middle;fill:#141821}
+</style>
+
+<text class="g" x="250" y="16" fill="#4a5568">NAMESPACE  echo-access  ·  IDENTITIES ONLY, NO WORKLOADS</text>
+<rect x="250" y="24" width="470" height="96" rx="8" fill="#f4f6f8" stroke="#9aa4b2" stroke-width="1.2"/>
+<rect class="b" x="266" y="44" width="142" height="58" stroke="#9b2c2c"/>
+<text class="t" x="337" y="66" fill="#9b2c2c">echo-compute-</text><text class="t" x="337" y="80" fill="#9b2c2c">controller</text>
+<text class="s" x="337" y="95">training · research</text>
+<rect class="b" x="424" y="44" width="142" height="58" stroke="#2c7a7b"/>
+<text class="t" x="495" y="66" fill="#2c7a7b">echo-services-</text><text class="t" x="495" y="80" fill="#2c7a7b">controller</text>
+<text class="s" x="495" y="95">inference</text>
+<rect class="b" x="582" y="44" width="122" height="58" stroke="#553c9a"/>
+<text class="t" x="643" y="66" fill="#553c9a">echo-project-</text><text class="t" x="643" y="80" fill="#553c9a">controller</text>
+<text class="s" x="643" y="95">cluster-scoped</text>
+
+<path class="e" d="M337,102 L337,148" stroke="#9b2c2c"/>
+<path class="e" d="M255,148 L851,148" stroke="#9b2c2c"/>
+<path class="e" d="M255,148 L255,204" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+<path class="e" d="M391,148 L391,204" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+<path class="e" d="M715,148 L715,204" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+<path class="e" d="M851,148 L851,204" stroke="#9b2c2c" marker-end="url(#ar-r)"/>
+
+<path class="e" d="M495,102 L495,124 L119,124 L119,204" stroke="#2c7a7b" marker-end="url(#ar)"/>
+<path class="e" d="M579,124 L579,204" stroke="#2c7a7b" marker-end="url(#ar)"/>
+<path class="e" d="M495,124 L579,124" stroke="#2c7a7b"/>
+
+<text class="g" x="140" y="186" fill="#4a5568">PROJECT  vision</text>
+<rect x="40" y="192" width="420" height="100" rx="8" fill="#fbfcfd" stroke="#c8d0da" stroke-width="1.2" stroke-dasharray="5 3"/>
+<rect class="b" x="56"  y="210" width="126" height="66" stroke="#2c7a7b" fill="#f0f7f7"/>
+<text class="nt" x="119" y="234">echo-vision-</text><text class="nt" x="119" y="248">inference</text><text class="s" x="119" y="266">LocalQueue</text>
+<rect class="b" x="192" y="210" width="126" height="66" stroke="#9b2c2c" fill="#fdf3f3"/>
+<text class="nt" x="255" y="234">echo-vision-</text><text class="nt" x="255" y="248">training</text><text class="s" x="255" y="266">LocalQueue</text>
+<rect class="b" x="328" y="210" width="126" height="66" stroke="#9b2c2c" fill="#fdf3f3"/>
+<text class="nt" x="391" y="234">echo-vision-</text><text class="nt" x="391" y="248">research</text><text class="s" x="391" y="266">LocalQueue</text>
+
+<text class="g" x="600" y="186" fill="#4a5568">PROJECT  nlp</text>
+<rect x="500" y="192" width="420" height="100" rx="8" fill="#fbfcfd" stroke="#c8d0da" stroke-width="1.2" stroke-dasharray="5 3"/>
+<rect class="b" x="516" y="210" width="126" height="66" stroke="#2c7a7b" fill="#f0f7f7"/>
+<text class="nt" x="579" y="234">echo-nlp-</text><text class="nt" x="579" y="248">inference</text><text class="s" x="579" y="266">LocalQueue</text>
+<rect class="b" x="652" y="210" width="126" height="66" stroke="#9b2c2c" fill="#fdf3f3"/>
+<text class="nt" x="715" y="234">echo-nlp-</text><text class="nt" x="715" y="248">training</text><text class="s" x="715" y="266">LocalQueue</text>
+<rect class="b" x="788" y="210" width="126" height="66" stroke="#9b2c2c" fill="#fdf3f3"/>
+<text class="nt" x="851" y="234">echo-nlp-</text><text class="nt" x="851" y="248">research</text><text class="s" x="851" y="266">LocalQueue</text>
+
+<text class="g" x="40" y="330" fill="#553c9a">echo-project-controller  ·  CLUSTER-SCOPED PROVISIONING</text>
+<rect x="40" y="338" width="880" height="48" rx="6" fill="#f7f4fc" stroke="#553c9a" stroke-width="1.2" stroke-dasharray="5 3"/>
+<text class="s" x="480" y="358" style="font-size:11px">creates and reconciles, per project and per cluster — idempotently, with Server-Side Apply:</text>
+<text class="s" x="480" y="375" style="font-size:11px;fill:#141821">Namespace · RoleBinding · ResourceQuota · NetworkPolicy · LocalQueue · model-storage access</text>
+<path class="e" d="M643,102 L936,102 L936,312 L480,312 L480,334" stroke="#553c9a" stroke-dasharray="5 3" marker-end="url(#ar-p)"/>
+
+<rect x="40" y="406" width="12" height="12" rx="2" fill="#fdf3f3" stroke="#9b2c2c" stroke-width="1.3"/>
+<text class="el" x="58" y="416">echo-compute-controller — RoleBinding in every *-training and *-research namespace</text>
+<rect x="40" y="428" width="12" height="12" rx="2" fill="#f0f7f7" stroke="#2c7a7b" stroke-width="1.3"/>
+<text class="el" x="58" y="438">echo-services-controller — RoleBinding in every *-inference namespace</text>
+<text class="el" x="470" y="416">The two workload identities hold disjoint permissions, so</text>
+<text class="el" x="470" y="438">neither can act in the other's namespaces.</text>
+</svg>

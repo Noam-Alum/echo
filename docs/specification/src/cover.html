@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>E.C.H.O Platform Specification</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 z" fill="#4a5568"/></marker>
+  <marker id="ar-b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 z" fill="#2b6cb0"/></marker>
+  <marker id="ar-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 z" fill="#2f6f4e"/></marker>
+  <marker id="ar-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 z" fill="#9b2c2c"/></marker>
+  <marker id="ar-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,1 L9,5 L0,9 z" fill="#553c9a"/></marker>
+</defs></svg>
+
+<section class="cover">
+  <div class="rule-top"></div>
+  <div class="eyebrow">Platform Specification &middot; Internal</div>
+  <h1>E.C.H.O</h1>
+  <div class="sub">Erez Compute Host Operations</div>
+
+  <div class="abstract">
+    <h2>Abstract</h2>
+    <p>E.C.H.O is a web-based GPU orchestration platform built on Kubernetes. It provides a unified
+    interface for submitting, scheduling, monitoring and managing AI compute operations across three
+    workload types: long-running inference services, time-bound research environments, and time-bound
+    training jobs.</p>
+    <p>PostgreSQL is the central source of truth for requests, queues, policies, metadata and audit
+    history. E.C.H.O workers reconcile that desired state into Kubernetes, while Kueue manages GPU quota
+    admission and the Kubernetes scheduler places workloads onto GPU nodes. Organizational users and
+    groups enforce access, priorities, limits and fair resource sharing.</p>
+    <p>This document specifies the architecture, data model, protocols, lifecycle and operational
+    behaviour of the platform. It is normative for implementations.</p>
+  </div>
+
+  <div class="meta">
+    <table>
+      <tr><td>Document</td><td>ECHO-SPEC-001</td></tr>
+      <tr><td>Version</td><td>1.0</td></tr>
+      <tr><td>Status</td><td>Draft Standard &mdash; normative for implementation</td></tr>
+      <tr><td>Date</td><td>24 August 2026</td></tr>
+      <tr><td>Supersedes</td><td>All prior E.C.H.O design material</td></tr>
+    </table>
+  </div>
+</section>
+
+
+</body></html>

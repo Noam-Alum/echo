@@ -1,0 +1,141 @@
+<h1><span class="n">1</span>Introduction</h1>
+
+<h2><span class="n">1.1</span>Purpose and Scope</h2>
+<p>E.C.H.O simplifies access to shared AI infrastructure, maximizes GPU utilization, prevents conflicting
+allocations, and provides reliable lifecycle management from submission and admission through execution,
+monitoring, cancellation, expiration and completion.</p>
+<p>This specification covers the control plane, the worker pool, the persistence model, the protocols
+between them, and the behaviour of each workload type. It does not specify the internal implementation of
+user-supplied workloads, the training frameworks they use, or the physical provisioning of GPU hardware.</p>
+
+<h2><span class="n">1.2</span>Workload Models</h2>
+<p>E.C.H.O supports two workload models, and the distinction runs through the whole specification.</p>
+<dl>
+<dt>Bring-your-own image &mdash; Research and Training</dt>
+<dd>The user supplies a complete container image containing the required tools and code. E.C.H.O treats
+the image as opaque: it validates the <em>request</em>, allocates the requested compute, and runs it as a
+time-bound session or job. E.C.H.O does not inspect or construct the image.</dd>
+<dt>Managed service &mdash; Inference</dt>
+<dd>E.C.H.O owns and maintains a versioned, prebuilt inference runtime image containing vLLM and the
+required platform components. The client supplies a declarative inference specification and receives a
+stable inference endpoint. The client never receives access to the underlying Pod.</dd>
+</dl>
+
+<h2><span class="n">1.3</span>Requirements Language</h2>
+<p>The key words <span class="kw">MUST</span>, <span class="kw">MUST NOT</span>,
+<span class="kw">REQUIRED</span>, <span class="kw">SHALL</span>, <span class="kw">SHALL NOT</span>,
+<span class="kw">SHOULD</span>, <span class="kw">SHOULD NOT</span>, <span class="kw">RECOMMENDED</span>,
+<span class="kw">MAY</span> and <span class="kw">OPTIONAL</span> in this document are to be interpreted as
+described in RFC 2119.</p>
+<p>These keywords carry their normative meaning only in Sections 3 through 15, which define conformance
+surface. Sections 1 and 2 and the appendices are descriptive. Numbered requirement blocks
+(<code>R-nn</code>) collect the obligations that an implementation is held against; Appendix B lists them
+in one place.</p>
+
+<h2><span class="n">1.4</span>Terminology</h2>
+<dl>
+<dt>Operation</dt><dd>A single logical unit of user intent &mdash; one training job, one research
+environment, or one inference model. Identified by an operation ID and durable for its whole life.</dd>
+<dt>Attempt</dt><dd>One physical execution of an operation. An operation may have several attempts over
+its life; each has a deterministic identity of the form
+<code>echo-&lt;operation-id&gt;-a&lt;attempt-number&gt;</code>.</dd>
+<dt>Revision</dt><dd>A version of an operation's <em>desired state</em>, created when the user or policy
+changes intent. Not a record of execution.</dd>
+<dt>Placement</dt><dd>The cluster, and for pinned inference the node, on which an operation runs. Observed
+from Kubernetes, never chosen by E.C.H.O.</dd>
+<dt>Plan</dt><dd>The immutable execution plan produced by the planner: target cluster, namespace, queue,
+priority, GPU flavor and attempt identity.</dd>
+<dt>Project</dt><dd>The unit of tenancy. Owns namespaces, quotas, storage and access. Each project has one
+namespace per workload type in each cluster.</dd>
+<dt>Fencing token</dt><dd>The pair <code>(lease_owner, claim_epoch)</code> that a worker must present on
+every completion write, so that a stalled worker's late write is rejected.</dd>
+<dt>Control plane</dt><dd>The API, planner, policy engine and expiry/recovery scanner. Reads and writes
+PostgreSQL; never calls the Kubernetes API.</dd>
+<dt>Worker</dt><dd>A cluster-agnostic reconciler that claims work from PostgreSQL and materializes it in a
+target Kubernetes cluster.</dd>
+</dl>
+
+<h1><span class="n">2</span>Architecture</h1>
+
+<h2><span class="n">2.1</span>System Ownership</h2>
+<p>Every concern in the platform has exactly one authority. This table is the reference for the whole
+document; where a later section appears to give a concern to a different component, this table wins.</p>
+
+<table>
+<tr><th style="width:44%">Concern</th><th>Authority</th></tr>
+<tr><td>User request and desired state</td><td>PostgreSQL writer</td></tr>
+<tr><td>Workflow / reconciliation queue</td><td>PostgreSQL writer</td></tr>
+<tr><td>User, group and policy snapshot</td><td>PostgreSQL</td></tr>
+<tr><td>Target cluster and resource plan</td><td>PostgreSQL</td></tr>
+<tr><td>Logical GPU admission</td><td>Kueue</td></tr>
+<tr><td>Pod-to-node placement</td><td>Kubernetes scheduler</td></tr>
+<tr><td>Actual workload state</td><td>Kubernetes API</td></tr>
+<tr><td>Reporting and dashboards</td><td>PostgreSQL read replicas</td></tr>
+<tr><td>GPU telemetry</td><td>Prometheus / DCGM, summarized into PostgreSQL</td></tr>
+</table>
+
+<div class="note"><span class="lbl">Authority, precisely</span>
+<p>PostgreSQL is the source of truth for <em>intent</em>: what the user asked for, what policy allowed,
+what the plan committed to, and what the queue owes. It also <em>reports</em> runtime state, but that
+report is a projection of Kubernetes, not an independent truth. Once an <code>EchoExecution</code> exists,
+Kubernetes is authoritative for what is actually running.</p></div>
+
+<h2><span class="n">2.2</span>Components</h2>
+<figure>
+SVG_ARCH
+
+<figcaption><b>Figure 1.</b> Component architecture. Every control-plane component writes to the
+PostgreSQL writer and none of them calls Kubernetes. Workers are the sole bridge: they claim work from
+PostgreSQL and reconcile it into a target cluster, then project observed state back.</figcaption>
+</figure>
+
+<h3><span class="n">2.2.1</span>Control plane</h3>
+<p>One deployable package with three entrypoints, each scaled independently:</p>
+<dl>
+<dt><code>api</code></dt><dd>Authenticates requests, evaluates policy, and writes user intent in a single
+transaction. Serves the web UI's static assets and its read queries.</dd>
+<dt><code>planner</code></dt><dd>Claims unplanned operations, validates the requested placement against
+policy, and stores the immutable execution plan.</dd>
+<dt><code>scanner</code></dt><dd>Finds expired and stuck operations and drives them to their terminal or
+recovery state.</dd>
+</dl>
+<p>All three claim work with the same row-locking protocol as the worker (Section 8.1), so all three
+scale horizontally and none requires leader election.</p>
+
+<h3><span class="n">2.2.2</span>Worker pool</h3>
+<p>Workers are cluster-agnostic: any worker can materialize any plan in that plan's target cluster. They
+are deployed one per controller identity, not one per cluster, and each process therefore holds a
+controller-runtime manager and cache per registered cluster.</p>
+
+<div class="req"><span class="rid">R-01</span>
+<p>A worker <span class="kw">MUST NOT</span> hold a PostgreSQL transaction open while calling the
+Kubernetes API.</p></div>
+
+<div class="req"><span class="rid">R-02</span>
+<p>A worker process holding managers for multiple clusters <span class="kw">MUST</span> isolate them, so
+that one cluster's reconnect storm or cache failure cannot starve reconciliation for the others.
+Bounded per-cluster work queues and per-cluster circuit breaking are <span class="kw">RECOMMENDED</span>.</p></div>
+
+<h3><span class="n">2.2.3</span>Persistence</h3>
+<p>A single PostgreSQL writer, with read replicas for reporting.</p>
+<div class="req"><span class="rid">R-03</span>
+<p>Read replicas <span class="kw">MUST NOT</span> be used for correctness decisions. They serve reporting
+and dashboards only. Any decision that admits, transitions, claims or completes an operation
+<span class="kw">MUST</span> read from the writer.</p></div>
+
+<h2><span class="n">2.3</span>Implementation Stack</h2>
+<table class="compact">
+<tr><th style="width:30%">Layer</th><th>Technology</th></tr>
+<tr><td>Control plane</td><td>Python + FastAPI; SQLAlchemy as the query layer; Alembic runs hand-written migrations</td></tr>
+<tr><td>Worker pool</td><td>Go + controller-runtime</td></tr>
+<tr><td>Web UI</td><td>React + TypeScript + Vite, built to static assets and served by the API</td></tr>
+<tr><td>Database</td><td>PostgreSQL; lifecycle enforced in-database by a transition function and a trigger</td></tr>
+<tr><td>Admission</td><td>Kueue</td></tr>
+<tr><td>Custom resources</td><td><code>EchoOperation</code> (operation-scoped) parents <code>EchoExecution</code> (attempt-scoped)</td></tr>
+<tr><td>Directory</td><td>LDAP; the API binds and issues its own revocable server-side session</td></tr>
+</table>
+
+<p>The language boundary sits exactly on the database. The control plane never calls Kubernetes, so it has
+no need of a Kubernetes client; the worker is the only component that does, and it lives where the mature
+controller tooling is. Because the two sides communicate only through PostgreSQL, the schema &mdash; not an
+RPC contract &mdash; is the interface between them.</p>

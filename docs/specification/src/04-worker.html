@@ -1,0 +1,141 @@
+<h1><span class="n">7</span>Planning</h1>
+
+<h2><span class="n">7.1</span>Cluster Selection</h2>
+<p>The submitter names the target cluster. The planner validates that choice against policy and flavor
+availability and writes it into the plan; it does not rank candidates and does not balance load.</p>
+
+<div class="req"><span class="rid">R-34</span>
+<p>The planner <span class="kw">MUST</span> validate that the requested cluster is registered, that the
+requesting group is permitted to use it, and that it offers the requested GPU flavor. It
+<span class="kw">MUST NOT</span> substitute a different cluster.</p></div>
+
+<div class="req"><span class="rid">R-35</span>
+<p>The planner <span class="kw">MUST NOT</span> select a node and <span class="kw">MUST NOT</span>
+compute free GPU capacity. Node selection belongs to the Kubernetes scheduler and quota admission belongs
+to Kueue.</p></div>
+
+<p>Because the cluster is part of submitted intent, a retry that is re-planned validates the same
+cluster, so an operation cannot migrate to a cluster that lacks its data. The cost is that there is no
+automatic failover: if the chosen cluster is saturated or unhealthy, the operation waits.</p>
+
+<div class="req"><span class="rid">R-36</span>
+<p>The user interface <span class="kw">MUST</span> present per-cluster capacity, drawn from PostgreSQL
+projections, so that the submitter's choice is informed.</p></div>
+
+<h2><span class="n">7.2</span>The Execution Plan</h2>
+<p>The plan is written once and never modified. It records target cluster, namespace, queue, priority,
+GPU flavor and attempt identity.</p>
+
+<div class="req"><span class="rid">R-37</span>
+<p>The execution plan <span class="kw">MUST</span> be immutable. A retry <span class="kw">MUST</span>
+receive its own plan, produced by re-planning, rather than mutating the previous one.</p></div>
+
+<h1><span class="n">8</span>Worker Protocol</h1>
+
+<p>The worker protocol is the mechanical core of the system. It is expressed in SQL because the
+guarantees it provides &mdash; mutual exclusion, lease expiry and fencing &mdash; are database guarantees.</p>
+
+<h2><span class="n">8.1</span>Claiming</h2>
+<div class="req"><span class="rid">R-38</span>
+<p>Workers <span class="kw">MUST</span> claim on the PostgreSQL writer using row locking with
+<code>SKIP LOCKED</code>, so that competing consumers never select the same row.</p></div>
+
+<pre><span class="k">WITH</span> candidate <span class="k">AS</span> (
+    <span class="k">SELECT</span> operation_id
+    <span class="k">FROM</span> reconcile_queue
+    <span class="k">WHERE</span> state = <span class="s">'pending'</span>
+      <span class="k">AND</span> available_at &lt;= clock_timestamp()
+    <span class="k">ORDER BY</span> priority <span class="k">DESC</span>, available_at
+    <span class="k">FOR UPDATE SKIP LOCKED</span>
+    <span class="k">LIMIT</span> 1
+)
+<span class="k">UPDATE</span> reconcile_queue <span class="k">AS</span> queue
+<span class="k">SET</span> state = <span class="s">'claimed'</span>,
+    lease_owner = $1,
+    lease_until = clock_timestamp() + <span class="k">interval</span> <span class="s">'30 seconds'</span>,
+    claim_epoch = claim_epoch + 1
+<span class="k">FROM</span> candidate
+<span class="k">WHERE</span> queue.operation_id = candidate.operation_id
+<span class="k">RETURNING</span> queue.*;</pre>
+
+<p>The same statement is used by the planner and the expiry scanner. Nothing in it is specific to
+workers, which is why none of the three roles needs leader election.</p>
+
+<h2><span class="n">8.2</span>Leases and Fencing</h2>
+<p>A lease bounds how long a claim is honoured. It does not stop a stalled worker from waking up and
+attempting to write &mdash; that is what the fencing token is for.</p>
+
+<figure>
+SVG_FENCE
+<figcaption><b>Figure 5.</b> Lease expiry and fence rejection. Worker A stalls past its lease; worker B
+claims the row, incrementing <code>claim_epoch</code>. When A recovers and writes, its
+<code>WHERE</code> clause matches zero rows, and it discards its result rather than corrupting state.</figcaption>
+</figure>
+
+<div class="req"><span class="rid">R-39</span>
+<p>Every completion update <span class="kw">MUST</span> carry the fencing token &mdash;
+<code>lease_owner</code> and <code>claim_epoch</code> &mdash; in its <code>WHERE</code> clause.</p></div>
+
+<pre><span class="k">UPDATE</span> reconcile_queue
+<span class="k">SET</span> processed_generation = $processed_generation,
+    state = <span class="k">CASE</span>
+        <span class="k">WHEN</span> desired_generation &gt; $processed_generation
+            <span class="k">THEN</span> <span class="s">'pending'</span>
+        <span class="k">ELSE</span> <span class="s">'idle'</span>
+    <span class="k">END</span>,
+    lease_owner = <span class="k">NULL</span>,
+    lease_until = <span class="k">NULL</span>
+<span class="k">WHERE</span> operation_id = $operation_id
+  <span class="k">AND</span> lease_owner = $worker_id
+  <span class="k">AND</span> claim_epoch = $claim_epoch;</pre>
+
+<div class="req"><span class="rid">R-40</span>
+<p>If the completion update affects zero rows, the worker <span class="kw">MUST</span> conclude that it
+has lost its lease and <span class="kw">MUST</span> discard its result. It <span class="kw">MUST NOT</span>
+retry the write, and <span class="kw">MUST NOT</span> take any further action on that operation under the
+old claim.</p></div>
+
+<p>The <code>CASE</code> expression re-arms the row in the same statement that releases it: if desired
+state advanced while the worker was busy, the row returns to <code>pending</code> rather than
+<code>idle</code>, and the next claim picks up the newer intent.</p>
+
+<h2><span class="n">8.3</span>Wake-up and Polling</h2>
+<div class="req"><span class="rid">R-41</span>
+<p><code>LISTEN</code>/<code>NOTIFY</code> <span class="kw">MAY</span> be used to wake workers promptly. It
+<span class="kw">MUST NOT</span> be treated as the durable queue: polling
+<span class="kw">MUST</span> remain the reliable path, and correctness
+<span class="kw">MUST NOT</span> depend on a notification being delivered.</p></div>
+
+<h2><span class="n">8.4</span>Reconciliation</h2>
+<div class="req"><span class="rid">R-42</span>
+<p>Kubernetes writes <span class="kw">MUST</span> use Server-Side Apply with an explicit field manager, so
+that ownership of each field is recorded and manual modification of an owned field is detected or
+overwritten.</p></div>
+
+<div class="req"><span class="rid">R-43</span>
+<p>Reconciliation <span class="kw">MUST</span> be level-triggered. The next action
+<span class="kw">MUST</span> be derived from observed cluster state, never from a record of which steps
+were previously completed. A reconciler that skips work because a milestone says it is done is incorrect
+the moment an object is deleted behind it.</p></div>
+
+<div class="req"><span class="rid">R-44</span>
+<p>A worker that finds an object matching the deterministic attempt identity
+<span class="kw">MUST</span> adopt it rather than creating a duplicate.</p></div>
+
+<div class="req"><span class="rid">R-45</span>
+<p>Periodic full reconciliation <span class="kw">MUST</span> run, so that a missed watch event is
+eventually corrected.</p></div>
+
+<h2><span class="n">8.5</span>Orchestration Milestones</h2>
+<p>Milestones record the operation's orchestration progress &mdash; validation, planning, workload
+creation, admission and startup &mdash; so that an operator can see where an operation stands and an
+auditor can reconstruct what happened.</p>
+
+<div class="req"><span class="rid">R-46</span>
+<p>Milestones <span class="kw">MUST</span> be recorded in PostgreSQL and <span class="kw">MAY</span> be
+projected into <code>EchoOperation.status</code> for inspection. They <span class="kw">MUST NOT</span>
+determine control flow; see R-43.</p></div>
+
+<p>Milestone recording is continuous, bound to the operation rather than to any Pod. Kubernetes may
+replace Pods without the operation restarting. Milestones do not restore application memory or
+computational progress inside a container, and are not intended to.</p>

@@ -1,0 +1,57 @@
+<svg viewBox="-46 0 1006 342" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .ln{font-size:11px;font-weight:600;text-anchor:end;fill:#141821}
+ .lw{font-size:9px;text-anchor:end;fill:#8994a3}
+ .seg{rx:3;stroke-width:1.3}
+ .sv{font-size:11px;font-weight:700;text-anchor:middle;fill:#fff}
+ .ev{font-size:9.5px;fill:#5f6b7a;text-anchor:middle}
+ .gl{stroke:#c8d0da;stroke-width:1;stroke-dasharray:3 3}
+ .tr{stroke:#e4e8ed;stroke-width:1}
+</style>
+
+<line class="gl" x1="110" y1="44" x2="110" y2="300"/>
+<line class="gl" x1="345" y1="44" x2="345" y2="300"/>
+<line class="gl" x1="495" y1="44" x2="495" y2="300"/>
+<line class="gl" x1="600" y1="44" x2="600" y2="300"/>
+<line class="gl" x1="695" y1="44" x2="695" y2="300"/>
+<text class="ev" x="110" y="18">submit</text>
+<text class="ev" x="345" y="34">attempt 1 fails</text>
+<text class="ev" x="495" y="18">worker lease expires</text>
+<text class="ev" x="600" y="34">extension approved</text>
+<text class="ev" x="695" y="18">node lost → Relocate</text>
+
+<text class="ln" x="96" y="72">desired_generation</text><text class="lw" x="96" y="86">user or policy intent</text>
+<line class="tr" x1="110" y1="76" x2="930" y2="76"/>
+<rect class="seg" x="110" y="62" width="484" height="26" fill="#2f6f4e" stroke="#255a3f"/>
+<text class="sv" x="352" y="80">generation 1</text>
+<rect class="seg" x="600" y="62" width="330" height="26" fill="#2f6f4e" stroke="#255a3f"/>
+<text class="sv" x="765" y="80">generation 2</text>
+
+<text class="ln" x="96" y="140">attempt_number</text><text class="lw" x="96" y="154">physical executions</text>
+<line class="tr" x1="110" y1="144" x2="930" y2="144"/>
+<rect class="seg" x="110" y="130" width="228" height="26" fill="#2b6cb0" stroke="#22568c"/>
+<text class="sv" x="224" y="148">attempt 1</text>
+<rect class="seg" x="350" y="130" width="336" height="26" fill="#2b6cb0" stroke="#22568c"/>
+<text class="sv" x="518" y="148">attempt 2</text>
+<rect class="seg" x="698" y="130" width="232" height="26" fill="#2b6cb0" stroke="#22568c"/>
+<text class="sv" x="814" y="148">attempt 3</text>
+
+<text class="ln" x="96" y="208">claim_epoch</text><text class="lw" x="96" y="222">fencing token</text>
+<line class="tr" x1="110" y1="212" x2="930" y2="212"/>
+<rect class="seg" x="110" y="198" width="128" height="26" fill="#8a5a12" stroke="#6d470e"/><text class="sv" x="174" y="216">1</text>
+<rect class="seg" x="242" y="198" width="146" height="26" fill="#8a5a12" stroke="#6d470e"/><text class="sv" x="315" y="216">2</text>
+<rect class="seg" x="392" y="198" width="99"  height="26" fill="#8a5a12" stroke="#6d470e"/><text class="sv" x="441" y="216">3</text>
+<rect class="seg" x="495" y="198" width="196" height="26" fill="#a97420" stroke="#6d470e"/><text class="sv" x="593" y="216">4</text>
+<rect class="seg" x="695" y="198" width="120" height="26" fill="#8a5a12" stroke="#6d470e"/><text class="sv" x="755" y="216">5</text>
+<rect class="seg" x="819" y="198" width="111" height="26" fill="#8a5a12" stroke="#6d470e"/><text class="sv" x="874" y="216">6</text>
+
+<text class="ln" x="96" y="276">placement.generation</text><text class="lw" x="96" y="290">observed node binding</text>
+<line class="tr" x1="110" y1="280" x2="930" y2="280"/>
+<rect class="seg" x="110" y="266" width="576" height="26" fill="#553c9a" stroke="#43307b"/>
+<text class="sv" x="398" y="284">placement generation 1 — gpu-node-07</text>
+<rect class="seg" x="698" y="266" width="232" height="26" fill="#553c9a" stroke="#43307b"/>
+<text class="sv" x="814" y="284">generation 2 — gpu-node-11</text>
+
+<text style="font-size:9.5px;fill:#5f6b7a" x="110" y="322">Epoch 4 begins mid-attempt: the worker stalled past its lease and another claimed the row. No new attempt, no new revision — the</text>
+<text style="font-size:9.5px;fill:#5f6b7a" x="110" y="336">replacement adopts the existing objects by name, and the stalled worker's late write is rejected by the fencing token.</text>
+</svg>

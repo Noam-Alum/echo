@@ -1,0 +1,109 @@
+<h1><span class="n">11</span>Workload Types</h1>
+
+<p>The three workload types differ in how they are materialized, how long they live, and &mdash; most
+consequentially &mdash; in who supplies the container image.</p>
+
+<figure>
+SVG_MODELS
+<figcaption><b>Figure 9.</b> The two workload models. For Research and Training the user's image is
+opaque and E.C.H.O validates only the request around it. For Inference the runtime is E.C.H.O's, the
+client supplies a declarative specification, and what comes back is an endpoint rather than a Pod.</figcaption>
+</figure>
+
+<table>
+<tr><th style="width:18%">Type</th><th style="width:40%">Kubernetes materialization</th><th>Admission and lifetime</th></tr>
+<tr><td>Training</td><td>Job (JobSet when multi-node)</td><td>Kueue; time-bound; retry policy applies</td></tr>
+<tr><td>Research</td><td>StatefulSet or interactive Pod, Service, PVC</td><td>Time-bound lease; preemptible priority</td></tr>
+<tr><td>Inference</td><td>Deployment, Service, route, ConfigMap</td><td>No fixed expiry; bounded replicas and GPU quota</td></tr>
+</table>
+
+<h2><span class="n">11.1</span>Training</h2>
+<p>Training is the first vertical slice of the platform, because it has an unambiguous beginning and a
+terminal result.</p>
+
+<div class="req"><span class="rid">R-64</span>
+<p>A training operation <span class="kw">MUST</span> be materialized as a Kubernetes Job admitted through
+Kueue. Multi-node training <span class="kw">SHOULD</span> use JobSet.</p></div>
+
+<h2><span class="n">11.2</span>Research</h2>
+<p>A research environment is a time-bound interactive session. Expiration stops compute but does not
+immediately destroy the researcher's work.</p>
+
+<pre>Compute expires → Pod removed → PVC retained → PVC deleted after the retention period</pre>
+
+<div class="req"><span class="rid">R-65</span>
+<p>Expiration of a research operation <span class="kw">MUST</span> release compute while retaining the
+PVC for the configured retention period.</p></div>
+
+<div class="req"><span class="rid">R-66</span>
+<p>Research is the only workload type for which namespace-scoped Kubernetes access
+<span class="kw">MAY</span> be granted to a project user, and only where interactive work genuinely
+requires it. Such access <span class="kw">MUST</span> be scoped to the project's research namespace and
+<span class="kw">MUST NOT</span> be cluster-wide.</p></div>
+
+<h2><span class="n">11.3</span>Inference</h2>
+<p>Inference is a managed service. E.C.H.O owns and maintains a versioned, prebuilt runtime image
+containing vLLM and the required platform components.</p>
+
+<div class="req"><span class="rid">R-67</span>
+<p>The client <span class="kw">MUST</span> supply a declarative inference specification containing model
+weight references, any adapters or additional layers, vLLM configuration, and GPU requirements. The
+client <span class="kw">MUST NOT</span> supply a container image.</p></div>
+
+<div class="req"><span class="rid">R-68</span>
+<p>E.C.H.O <span class="kw">MUST</span> validate the specification against the option surface of the
+runtime version it will deploy, and <span class="kw">MUST</span> reject a specification it cannot
+validate. The validator is therefore version-coupled to the runtime image.</p></div>
+
+<div class="req"><span class="rid">R-69</span>
+<p>E.C.H.O <span class="kw">MUST</span> materialize the complete stack: the model Pod, its configuration,
+model storage access, the Service and the external route.</p></div>
+
+<div class="req"><span class="rid">R-70</span>
+<p>The client <span class="kw">MUST</span> receive a stable inference endpoint. End users
+<span class="kw">MUST NOT</span> receive Kubernetes or Pod access for managed inference. Platform
+administrators <span class="kw">MUST</span> retain direct access through Kubernetes RBAC for logging,
+diagnostics and maintenance.</p></div>
+
+<p>Model weights are referenced rather than baked into the image, so cold start is a function of weight
+size and storage throughput. This is the same cost that a <code>Relocate</code> recovery incurs when a
+model must be allocated and loaded again.</p>
+
+<h3><span class="n">11.3.1</span>Placement</h3>
+<p>The scheduling unit for inference is the model, not the Pod.</p>
+
+<div class="req"><span class="rid">R-71</span>
+<p>A model <span class="kw">MUST</span> be assigned to a single node and <span class="kw">MAY</span> use
+one or more whole GPUs on that node. GPU partitioning &mdash; MIG or time-slicing &mdash;
+<span class="kw">MUST NOT</span> be used.</p></div>
+
+<div class="req"><span class="rid">R-72</span>
+<p>Once placed, the assigned node <span class="kw">MUST</span> be recorded in
+<code>EchoOperation.status.placement</code> and <span class="kw">MUST</span> be fixed for the operation's
+lifetime, subject to the recovery policy of Section 10.5. Pods recreated by Kubernetes
+<span class="kw">MUST</span> return to that node.</p></div>
+
+<div class="req"><span class="rid">R-73</span>
+<p>The pin <span class="kw">MUST</span> be expressed as a node selector or affinity so that the scheduler
+continues to evaluate resources and taints. <code>nodeName</code> <span class="kw">MUST NOT</span> be
+used, because it bypasses the scheduler and produces an unschedulable Pod that fails opaquely.</p></div>
+
+<div class="req"><span class="rid">R-74</span>
+<p>Models requiring more than one node are outside the scope of this specification and
+<span class="kw">MUST NOT</span> be admitted as managed inference operations.</p></div>
+
+<div class="note"><span class="lbl">What managed inference does not provide</span>
+<p>E.C.H.O does not provide zero-downtime inference, redundant replicas or active-active model
+deployment. Each model has exactly one active placement, and the recovery policy governs only whether
+that placement is held or moved. Workloads requiring redundancy are managed outside E.C.H.O.</p></div>
+
+<h1><span class="n">12</span>End-to-End Flow</h1>
+<p>The following sequence is the reference for how the components interact. It shows the successful path;
+failure handling is specified in Section 15.</p>
+
+<figure>
+SVG_SEQ
+<figcaption><b>Figure 10.</b> Submission through GPU execution. Note where authority changes hands: the
+planner commits a target, Kueue decides admission, the scheduler and device plugin decide the node, and
+from that point the worker observes rather than directs.</figcaption>
+</figure>

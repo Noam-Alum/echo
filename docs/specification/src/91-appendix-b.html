@@ -1,0 +1,91 @@
+<div class="appendix">
+<h1><span class="n">B</span>Index of Requirements</h1>
+<p>Every numbered requirement in this specification, in order, with the section that states it in full.
+Entries are abbreviated; the section text is normative. An implementation is conformant when it
+satisfies all 82.</p>
+<table class="compact">
+<tr><th style="width:9%">ID</th><th style="width:8%">&sect;</th><th>Requirement</th></tr>
+<tr><td><b>R-01</b></td><td>2.2</td><td>A worker MUST NOT hold a PostgreSQL transaction open while calling the Kubernetes API.</td></tr>
+<tr><td><b>R-02</b></td><td>2.2</td><td>A worker process holding managers for multiple clusters MUST isolate them, so that one cluster's reconnect storm or cache failure cannot starve reconciliation for the others.</td></tr>
+<tr><td><b>R-03</b></td><td>2.2</td><td>Read replicas MUST NOT be used for correctness decisions.</td></tr>
+<tr><td><b>R-04</b></td><td>3.1</td><td>Each registered cluster MUST have an entry in the cluster registry recording its identifier, API endpoint, credential reference and available GPU flavors.</td></tr>
+<tr><td><b>R-05</b></td><td>3.2</td><td>Workload namespaces MUST be named <code>echo-&lt;project&gt;-&lt;type&gt;</code> where <em>type</em> is one of <code>training</code>, <code>research</code> or <code>inference</code>.</td></tr>
+<tr><td><b>R-06</b></td><td>3.2</td><td>Selection of E.C.H.O-managed objects MUST use labels, not namespace-name parsing.</td></tr>
+<tr><td><b>R-07</b></td><td>3.3</td><td>The three controller identities MUST hold disjoint permissions. <code>echo-project-controller</code> MUST NOT hold verbs on Pods, Jobs or Deployments, and the two workload identities MUST NOT …</td></tr>
+<tr><td><b>R-08</b></td><td>3.3</td><td>Roles and RoleBindings MUST be created in the target namespace with subjects referring to the ServiceAccounts in <code>echo-access</code>.</td></tr>
+<tr><td><b>R-09</b></td><td>3.4</td><td>Inference nodes MUST be tainted, and only inference workloads MUST tolerate that taint.</td></tr>
+<tr><td><b>R-10</b></td><td>3.5</td><td>Project provisioning MUST be performed by a worker reconciling a project row, not by the API. The control plane MUST NOT call the Kubernetes API.</td></tr>
+<tr><td><b>R-11</b></td><td>3.5</td><td>The provisioner MUST create, for each project and each cluster: the three workload namespaces; RoleBindings binding the appropriate controller identities; a ResourceQuota; a NetworkPolicy; a …</td></tr>
+<tr><td><b>R-12</b></td><td>4.1</td><td>Each attempt MUST receive the deterministic identity <code>echo-&lt;operation-id&gt;-a&lt;attempt-number&gt;</code>.</td></tr>
+<tr><td><b>R-13</b></td><td>4.1</td><td>Retry creation MUST occur in a single PostgreSQL transaction that increments the attempt number.</td></tr>
+<tr><td><b>R-14</b></td><td>4.2</td><td>Both custom resources are derived snapshots.</td></tr>
+<tr><td><b>R-15</b></td><td>4.2</td><td>A new <code>EchoExecution</code> MUST inherit its placement from its parent <code>EchoOperation</code>, so that a pinned node survives attempt replacement.</td></tr>
+<tr><td><b>R-16</b></td><td>4.2</td><td>Objects whose identity must outlive an attempt &mdash; in particular the inference Service and its external route &mdash; MUST be owned by <code>EchoOperation</code>. Objects specific to one …</td></tr>
+<tr><td><b>R-17</b></td><td>5.1</td><td>An implementation MUST NOT treat a PostgreSQL runtime record as independent truth about what is running.</td></tr>
+<tr><td><b>R-18</b></td><td>5.3</td><td>A worker that stalls and is replaced MUST cause only <code>claim_epoch</code> to advance.</td></tr>
+<tr><td><b>R-19</b></td><td>5.4</td><td>A transition function in PostgreSQL MUST be the write path for operation state changes.</td></tr>
+<tr><td><b>R-20</b></td><td>5.4</td><td>A trigger MUST enforce the terminal-state rule independently of the transition function, so that an ad-hoc <code>UPDATE</code> cannot move an operation backwards out of …</td></tr>
+<tr><td><b>R-21</b></td><td>5.5</td><td>Migrations MUST be hand-written.</td></tr>
+<tr><td><b>R-22</b></td><td>5.5</td><td>The control plane MUST own migration execution.</td></tr>
+<tr><td><b>R-23</b></td><td>6.1</td><td>The API MUST issue an opaque, server-side session recorded in PostgreSQL. The session MUST be revocable with immediate effect.</td></tr>
+<tr><td><b>R-24</b></td><td>6.1</td><td><code>owner_subject</code> MUST hold an immutable directory identifier &mdash; <code>objectGUID</code> on Active Directory, <code>entryUUID</code> on OpenLDAP. It MUST NOT hold a …</td></tr>
+<tr><td><b>R-25</b></td><td>6.1</td><td>All directory connections MUST use LDAPS or StartTLS; simple bind transmits credentials in cleartext.</td></tr>
+<tr><td><b>R-26</b></td><td>6.1</td><td>Group resolution MUST account for nested groups.</td></tr>
+<tr><td><b>R-27</b></td><td>6.1</td><td>The synchronizer MUST revoke the sessions of users who have been disabled or removed in the directory.</td></tr>
+<tr><td><b>R-28</b></td><td>6.2</td><td>Submission MUST require a client idempotency key, and the schema MUST enforce <code>UNIQUE (owner_subject, idempotency_key)</code>. A retried request MUST return the original operation rather …</td></tr>
+<tr><td><b>R-29</b></td><td>6.3</td><td>Submission MUST be a single PostgreSQL transaction.</td></tr>
+<tr><td><b>R-30</b></td><td>6.4</td><td>The resolved policy decision &mdash; groups, limits, priority ceiling and approved duration &mdash; MUST be snapshotted onto the operation at submission.</td></tr>
+<tr><td><b>R-31</b></td><td>6.4</td><td>Platform limits MUST be evaluated by the policy engine before a workload reaches Kueue.</td></tr>
+<tr><td><b>R-32</b></td><td>6.4</td><td>An approval that exceeds a policy limit MUST be recorded as an explicit exception in <code>operation_event</code>, carrying the approver's identity and the limit exceeded.</td></tr>
+<tr><td><b>R-33</b></td><td>6.4</td><td>An extension request MUST be evaluated against policy and group membership as they stand at the time of the request, not against the snapshot taken at submission.</td></tr>
+<tr><td><b>R-34</b></td><td>7.1</td><td>The planner MUST validate that the requested cluster is registered, that the requesting group is permitted to use it, and that it offers the requested GPU flavor.</td></tr>
+<tr><td><b>R-35</b></td><td>7.1</td><td>The planner MUST NOT select a node and MUST NOT compute free GPU capacity.</td></tr>
+<tr><td><b>R-36</b></td><td>7.1</td><td>The user interface MUST present per-cluster capacity, drawn from PostgreSQL projections, so that the submitter's choice is informed.</td></tr>
+<tr><td><b>R-37</b></td><td>7.2</td><td>The execution plan MUST be immutable.</td></tr>
+<tr><td><b>R-38</b></td><td>8.1</td><td>Workers MUST claim on the PostgreSQL writer using row locking with <code>SKIP LOCKED</code>, so that competing consumers never select the same row.</td></tr>
+<tr><td><b>R-39</b></td><td>8.2</td><td>Every completion update MUST carry the fencing token &mdash; <code>lease_owner</code> and <code>claim_epoch</code> &mdash; in its <code>WHERE</code> clause.</td></tr>
+<tr><td><b>R-40</b></td><td>8.2</td><td>If the completion update affects zero rows, the worker MUST conclude that it has lost its lease and MUST discard its result.</td></tr>
+<tr><td><b>R-41</b></td><td>8.3</td><td><code>LISTEN</code>/<code>NOTIFY</code> MAY be used to wake workers promptly.</td></tr>
+<tr><td><b>R-42</b></td><td>8.4</td><td>Kubernetes writes MUST use Server-Side Apply with an explicit field manager, so that ownership of each field is recorded and manual modification of an owned field is detected or overwritten.</td></tr>
+<tr><td><b>R-43</b></td><td>8.4</td><td>Reconciliation MUST be level-triggered.</td></tr>
+<tr><td><b>R-44</b></td><td>8.4</td><td>A worker that finds an object matching the deterministic attempt identity MUST adopt it rather than creating a duplicate.</td></tr>
+<tr><td><b>R-45</b></td><td>8.4</td><td>Periodic full reconciliation MUST run, so that a missed watch event is eventually corrected.</td></tr>
+<tr><td><b>R-46</b></td><td>8.5</td><td>Milestones MUST be recorded in PostgreSQL and MAY be projected into <code>EchoOperation.status</code> for inspection.</td></tr>
+<tr><td><b>R-47</b></td><td>9.1</td><td>E.C.H.O MUST NOT count currently free GPUs and MUST NOT represent a physical GPU as reserved.</td></tr>
+<tr><td><b>R-48</b></td><td>9.2</td><td>Each project namespace MUST contain a <code>LocalQueue</code> pointing at the ClusterQueue for its team and workload class.</td></tr>
+<tr><td><b>R-49</b></td><td>9.2</td><td>A ClusterQueue MUST NOT span node pools that a workload cannot use interchangeably.</td></tr>
+<tr><td><b>R-50</b></td><td>9.2</td><td>Research workloads MUST run at a priority below training within the compute cohort, so that borrowed capacity is reclaimable.</td></tr>
+<tr><td><b>R-51</b></td><td>9.3</td><td>The worker MUST observe the node chosen by the scheduler and record it.</td></tr>
+<tr><td><b>R-52</b></td><td>9.3</td><td>If placement does not succeed within the configured placement deadline, the operation MUST fail with reason <code>PlacementFailed</code>. The deadline is a policy parameter and MUST exceed …</td></tr>
+<tr><td><b>R-53</b></td><td>10.1</td><td>The terminal states are <code>Succeeded</code>, <code>Failed</code>, <code>Cancelled</code>, <code>Expired</code> and <code>Rejected</code>. An operation in a terminal state MUST NOT …</td></tr>
+<tr><td><b>R-54</b></td><td>10.1</td><td>A retry MUST re-enter the lifecycle at <code>Queued</code>, not at <code>Starting</code>, so that it is re-planned and re-admitted.</td></tr>
+<tr><td><b>R-55</b></td><td>10.2</td><td>Cancellation MUST be recorded as a change of desired state.</td></tr>
+<tr><td><b>R-56</b></td><td>10.3</td><td>For time-bound operations, <code>expires_at</code> MUST be computed as <code>admitted_at + approved_duration</code>. The clock MUST start at admission, not at submission &mdash; time spent …</td></tr>
+<tr><td><b>R-57</b></td><td>10.3</td><td>Expiration and extension MUST use an expected database version, so that a stale expiry scanner cannot overwrite a newly approved extension.</td></tr>
+<tr><td><b>R-58</b></td><td>10.4</td><td>The following MUST be retried automatically, up to a policy-configured <code>max_attempts</code>:.</td></tr>
+<tr><td><b>R-59</b></td><td>10.4</td><td>The following MUST NOT be retried automatically:.</td></tr>
+<tr><td><b>R-60</b></td><td>10.4</td><td>A failure whose cause cannot be determined MUST NOT be retried automatically.</td></tr>
+<tr><td><b>R-61</b></td><td>10.5</td><td>Loss of a pinned node MUST place the operation in the non-terminal <code>Unavailable</code> state with reason <code>PinnedNodeUnavailable</code>. It MUST NOT be recorded as <code>Failed</code>.</td></tr>
+<tr><td><b>R-62</b></td><td>10.5</td><td>Under <code>HoldPlacement</code> the binding MUST remain fixed for the operation's lifetime unless the user changes it.</td></tr>
+<tr><td><b>R-63</b></td><td>10.5</td><td>A <code>PinnedNodeUnavailable</code> condition that persists MUST raise an alert.</td></tr>
+<tr><td><b>R-64</b></td><td>11.1</td><td>A training operation MUST be materialized as a Kubernetes Job admitted through Kueue.</td></tr>
+<tr><td><b>R-65</b></td><td>11.2</td><td>Expiration of a research operation MUST release compute while retaining the PVC for the configured retention period.</td></tr>
+<tr><td><b>R-66</b></td><td>11.2</td><td>Research is the only workload type for which namespace-scoped Kubernetes access MAY be granted to a project user, and only where interactive work genuinely requires it.</td></tr>
+<tr><td><b>R-67</b></td><td>11.3</td><td>The client MUST supply a declarative inference specification containing model weight references, any adapters or additional layers, vLLM configuration, and GPU requirements.</td></tr>
+<tr><td><b>R-68</b></td><td>11.3</td><td>E.C.H.O MUST validate the specification against the option surface of the runtime version it will deploy, and MUST reject a specification it cannot validate.</td></tr>
+<tr><td><b>R-69</b></td><td>11.3</td><td>E.C.H.O MUST materialize the complete stack: the model Pod, its configuration, model storage access, the Service and the external route.</td></tr>
+<tr><td><b>R-70</b></td><td>11.3</td><td>The client MUST receive a stable inference endpoint.</td></tr>
+<tr><td><b>R-71</b></td><td>11.3</td><td>A model MUST be assigned to a single node and MAY use one or more whole GPUs on that node.</td></tr>
+<tr><td><b>R-72</b></td><td>11.3</td><td>Once placed, the assigned node MUST be recorded in <code>EchoOperation.status.placement</code> and MUST be fixed for the operation's lifetime, subject to the recovery policy of Section 10.5.</td></tr>
+<tr><td><b>R-73</b></td><td>11.3</td><td>The pin MUST be expressed as a node selector or affinity so that the scheduler continues to evaluate resources and taints. <code>nodeName</code> MUST NOT be used, because it bypasses the …</td></tr>
+<tr><td><b>R-74</b></td><td>11.3</td><td>Models requiring more than one node are outside the scope of this specification and MUST NOT be admitted as managed inference operations.</td></tr>
+<tr><td><b>R-75</b></td><td>13.1</td><td>Training and Research usage MUST be recorded per operation attempt and finalized when the attempt reaches a terminal state.</td></tr>
+<tr><td><b>R-76</b></td><td>13.1</td><td>Allocated GPU time and observed utilization MUST be stored separately.</td></tr>
+<tr><td><b>R-77</b></td><td>13.2</td><td><code>operation_event</code>, <code>compute_operation</code> history and the usage tables MUST be partitioned by month and retained.</td></tr>
+<tr><td><b>R-78</b></td><td>13.2</td><td>Partition maintenance MUST be monitored.</td></tr>
+<tr><td><b>R-79</b></td><td>14.1</td><td>Credentials MUST NOT be logged and MUST NOT be persisted in any form.</td></tr>
+<tr><td><b>R-80</b></td><td>14.2</td><td>Workload namespaces MUST enforce a Pod Security admission level.</td></tr>
+<tr><td><b>R-81</b></td><td>14.2</td><td>A NetworkPolicy MUST be applied to every workload namespace, so that a project's workloads cannot reach another project's Pods or Services.</td></tr>
+<tr><td><b>R-82</b></td><td>14.3</td><td>Cluster credentials held by the worker pool MUST be scoped to the ServiceAccounts of Section 3.3 and MUST NOT be cluster-admin.</td></tr>
+</table>
+</div>

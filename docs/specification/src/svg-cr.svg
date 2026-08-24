@@ -1,0 +1,71 @@
+<svg viewBox="0 0 960 360" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .b{fill:#fff;stroke-width:1.35;rx:4}
+ .t{font-size:12px;font-weight:600;text-anchor:middle;fill:#141821}
+ .s{font-size:9.5px;text-anchor:middle;fill:#5f6b7a}
+ .g{font-size:10px;letter-spacing:.14em;font-weight:700;fill:#4a5568}
+ .e{stroke:#4a5568;stroke-width:1.3;fill:none}
+ .el{font-size:9.5px;fill:#5f6b7a}
+ .rt{font-size:11.5px;font-weight:600;fill:#141821}
+ .rs{font-size:10px;fill:#5f6b7a}
+</style>
+
+<text class="g" x="20" y="16">RESOURCE HIERARCHY IN THE CLUSTER</text>
+<rect class="b" x="120" y="28" width="270" height="58" stroke="#2b6cb0" stroke-width="1.9" fill="#f4f9fe"/>
+<text class="t" x="255" y="50" fill="#2b6cb0">EchoOperation</text>
+<text class="s" x="255" y="65">echo-7d91a2</text><text class="s" x="255" y="78">placement · availability · endpoint</text>
+
+<rect class="b" x="418" y="34" width="132" height="46" stroke="#2c7a7b" fill="#f0f7f7"/>
+<text class="t" x="484" y="53" fill="#2c7a7b">Service + Route</text><text class="s" x="484" y="68">the stable endpoint</text>
+<path class="e" d="M390,57 L414,57"/>
+<text class="el" x="396" y="98">owned by the parent, so a</text>
+<text class="el" x="396" y="110">retry never recreates it</text>
+
+<path class="e" d="M255,86 L255,112"/>
+<path class="e" d="M120,112 L390,112"/>
+<path class="e" d="M120,112 L120,144" marker-end="url(#ar)"/>
+<path class="e" d="M390,112 L390,144" marker-end="url(#ar)"/>
+
+<rect class="b" x="24" y="148" width="192" height="52" stroke="#a3adba" stroke-dasharray="4 3"/>
+<text class="t" x="120" y="169" fill="#8994a3">EchoExecution</text>
+<text class="s" x="120" y="184">echo-7d91a2-a1 · superseded</text>
+
+<rect class="b" x="294" y="148" width="192" height="52" stroke="#2b6cb0"/>
+<text class="t" x="390" y="169" fill="#2b6cb0">EchoExecution</text>
+<text class="s" x="390" y="184">echo-7d91a2-a2 · current</text>
+
+<path class="e" d="M390,200 L390,228" marker-end="url(#ar)"/>
+<rect class="b" x="304" y="232" width="172" height="46" stroke="#5f6b7a"/>
+<text class="t" x="390" y="251">Pod</text><text class="s" x="390" y="266">ephemeral runtime instance</text>
+<text class="el" x="24" y="222">attempt 1's objects were</text>
+<text class="el" x="24" y="234">garbage-collected with it</text>
+
+<text class="el" x="500" y="176">placement inherited</text>
+<text class="el" x="500" y="188">from the parent</text>
+<path class="e" d="M255,86 L560,86 L560,166 L492,166" stroke="#2b6cb0" stroke-dasharray="4 3" marker-end="url(#ar-b)"/>
+
+<line x1="600" y1="20" x2="600" y2="300" stroke="#e0e5ea"/>
+
+<text class="g" x="626" y="16">WHO IS AUTHORITATIVE FOR WHAT</text>
+<rect class="b" x="626" y="28" width="310" height="56" stroke="#2f6f4e" fill="#f3f9f5"/>
+<text class="rt" x="640" y="48" fill="#2f6f4e">PostgreSQL — desired state</text>
+<text class="rs" x="640" y="64">user intent · recovery policy</text><text class="rs" x="640" y="77">desired generation</text>
+
+<rect class="b" x="626" y="96" width="310" height="56" stroke="#2b6cb0" fill="#f4f9fe"/>
+<text class="rt" x="640" y="116" fill="#2b6cb0">EchoOperation.status</text>
+<text class="rs" x="640" y="132">observed placement · availability</text><text class="rs" x="640" y="145">current attempt</text>
+
+<rect class="b" x="626" y="164" width="310" height="48" stroke="#2b6cb0" fill="#fbfdff"/>
+<text class="rt" x="640" y="184" fill="#2b6cb0">EchoExecution.status</text>
+<text class="rs" x="640" y="200">attempt-specific workload state</text>
+
+<rect class="b" x="626" y="224" width="310" height="48" stroke="#5f6b7a"/>
+<text class="rt" x="640" y="244">Pod</text>
+<text class="rs" x="640" y="260">ephemeral runtime instance</text>
+
+<text class="el" x="626" y="292">Intent lives in PostgreSQL. Everything below the line is observed,</text>
+<text class="el" x="626" y="306">not decided — the cluster is authoritative for what is running.</text>
+
+<text class="el" x="20" y="300">Owner references cascade: deleting EchoOperation garbage-collects the executions,</text>
+<text class="el" x="20" y="314">the Service and route, and every workload object beneath them.</text>
+</svg>

@@ -1,0 +1,53 @@
+<svg viewBox="-16 0 992 372" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .ln{font-size:11px;font-weight:600;text-anchor:end;fill:#141821}
+ .lw{font-size:9px;text-anchor:end;fill:#8994a3}
+ .seg{rx:3;stroke-width:1.3}
+ .sv{font-size:10.5px;font-weight:600;text-anchor:middle;fill:#fff}
+ .ev{font-size:9.5px;fill:#5f6b7a;text-anchor:middle}
+ .gl{stroke:#c8d0da;stroke-width:1;stroke-dasharray:3 3}
+ .tr{stroke:#e4e8ed;stroke-width:1}
+ .mono{font-size:9.5px;font-family:"SF Mono",ui-monospace,Menlo,monospace}
+</style>
+
+<line class="gl" x1="430" y1="40" x2="430" y2="300"/>
+<line class="gl" x1="480" y1="40" x2="480" y2="300"/>
+<line class="gl" x1="650" y1="40" x2="650" y2="300"/>
+<text class="ev" x="430" y="20">lease_until passes</text>
+<text class="ev" x="480" y="34">worker B claims</text>
+<text class="ev" x="650" y="20">worker A wakes up</text>
+
+<text class="ln" x="120" y="70">reconcile_queue row</text><text class="lw" x="120" y="84">the fencing token</text>
+<line class="tr" x1="136" y1="74" x2="930" y2="74"/>
+<rect class="seg" x="136" y="58" width="294" height="30" fill="#2b6cb0" stroke="#22568c"/>
+<text class="sv" x="283" y="78">lease_owner = A · claim_epoch = 5</text>
+<rect class="seg" x="430" y="58" width="50" height="30" fill="#c8d0da" stroke="#9aa4b2"/>
+<rect class="seg" x="480" y="58" width="450" height="30" fill="#2f6f4e" stroke="#255a3f"/>
+<text class="sv" x="705" y="78">lease_owner = B · claim_epoch = 6</text>
+
+<text class="ln" x="120" y="160">Worker A</text><text class="lw" x="120" y="174">stalls, then returns</text>
+<line class="tr" x1="136" y1="164" x2="930" y2="164"/>
+<rect class="seg" x="136" y="148" width="184" height="30" fill="#eaf2fb" stroke="#2b6cb0"/>
+<text style="font-size:10.5px;text-anchor:middle;fill:#22568c" x="228" y="167">claims · reconciles</text>
+<line x1="320" y1="163" x2="646" y2="163" stroke="#9aa4b2" stroke-width="1.3" stroke-dasharray="5 4"/>
+<text class="ev" x="483" y="157">stalled — GC pause or partition</text>
+
+<rect class="seg" x="650" y="196" width="280" height="52" fill="#fdf3f3" stroke="#9b2c2c"/>
+<text class="mono" x="662" y="214" fill="#9b2c2c">UPDATE ... WHERE lease_owner = 'A'</text>
+<text class="mono" x="662" y="228" fill="#9b2c2c">                AND claim_epoch = 5</text>
+<text style="font-size:10.5px;font-weight:700;fill:#9b2c2c" x="662" y="243">→ 0 rows · result discarded</text>
+<path d="M650,180 L650,192" stroke="#9b2c2c" stroke-width="1.3" fill="none" marker-end="url(#ar-r)"/>
+<path d="M700,196 L700,92" stroke="#9b2c2c" stroke-width="1.3" fill="none" stroke-dasharray="4 3" marker-end="url(#ar-r)"/>
+<text class="ev" x="770" y="120" fill="#9b2c2c">token no longer matches</text>
+
+<text class="ln" x="120" y="290">Worker B</text><text class="lw" x="120" y="304">claims and finishes</text>
+<line class="tr" x1="136" y1="294" x2="930" y2="294"/>
+<rect class="seg" x="480" y="278" width="290" height="30" fill="#eef7f0" stroke="#2f6f4e"/>
+<text style="font-size:10.5px;text-anchor:middle;fill:#255a3f" x="625" y="297">adopts echo-7d91a2-a1 · reconciles</text>
+<rect class="seg" x="778" y="278" width="152" height="30" fill="#2f6f4e" stroke="#255a3f"/>
+<text class="sv" x="854" y="297">(B, 6) → 1 row ✓</text>
+<path d="M480,92 L480,274" stroke="#2f6f4e" stroke-width="1.3" fill="none" marker-end="url(#ar-g)"/>
+
+<text style="font-size:9.5px;fill:#5f6b7a" x="136" y="340">The lease bounds how long a claim is honoured; it cannot stop a stalled worker from waking and writing. The fencing token is what</text>
+<text style="font-size:9.5px;fill:#5f6b7a" x="136" y="354">makes the late write harmless — and because attempt identity is deterministic, B adopts A's Kubernetes objects instead of duplicating them.</text>
+</svg>

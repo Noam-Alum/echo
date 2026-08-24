@@ -1,0 +1,161 @@
+<h1><span class="n">9</span>Scheduling and Admission</h1>
+
+<h2><span class="n">9.1</span>Three Layers</h2>
+<p>Placement is decided by three independent layers. Each has a responsibility and, just as importantly,
+a prohibition. The prohibitions are what keep E.C.H.O from racing Kubernetes.</p>
+
+<figure>
+SVG_LAYERS
+<figcaption><b>Figure 6.</b> The three scheduling layers. Authority narrows from left to right: E.C.H.O
+decides what is allowed, Kueue decides what is admitted, and the Kubernetes scheduler decides where it
+runs. Nothing upstream may pre-empt a downstream decision.</figcaption>
+</figure>
+
+<div class="req"><span class="rid">R-47</span>
+<p>E.C.H.O <span class="kw">MUST NOT</span> count currently free GPUs and
+<span class="kw">MUST NOT</span> represent a physical GPU as reserved. Any such count is a snapshot that
+is already stale, and acting on it races the scheduler.</p></div>
+
+<h2><span class="n">9.2</span>Kueue Configuration</h2>
+<p>Each team has two ClusterQueues, in two cohorts, matching the node split from Section 3.4.</p>
+
+<figure>
+SVG_KUEUE
+<figcaption><b>Figure 7.</b> Queue and cohort layout. The compute cohort spans the shared training and
+research pool, so teams borrow each other's idle capacity and reclaim it by preemption. The inference
+cohort sits on the tainted pool and is never preempted.</figcaption>
+</figure>
+
+<div class="req"><span class="rid">R-48</span>
+<p>Each project namespace <span class="kw">MUST</span> contain a <code>LocalQueue</code> pointing at the
+ClusterQueue for its team and workload class.</p></div>
+
+<div class="req"><span class="rid">R-49</span>
+<p>A ClusterQueue <span class="kw">MUST NOT</span> span node pools that a workload cannot use
+interchangeably. Admission would otherwise reflect capacity that is unreachable for the admitted
+workload.</p></div>
+
+<div class="req"><span class="rid">R-50</span>
+<p>Research workloads <span class="kw">MUST</span> run at a priority below training within the compute
+cohort, so that borrowed capacity is reclaimable.</p></div>
+
+<h2><span class="n">9.3</span>Placement Observation</h2>
+<p>The worker applies the workload and then watches. It learns the node from the cluster; it never
+supplies one.</p>
+
+<div class="req"><span class="rid">R-51</span>
+<p>The worker <span class="kw">MUST</span> observe the node chosen by the scheduler and record it. It
+<span class="kw">MUST NOT</span> set <code>nodeName</code> to direct initial placement.</p></div>
+
+<div class="req"><span class="rid">R-52</span>
+<p>If placement does not succeed within the configured placement deadline, the operation
+<span class="kw">MUST</span> fail with reason <code>PlacementFailed</code>. The deadline is a policy
+parameter and <span class="kw">MUST</span> exceed realistic queue wait under Kueue.</p></div>
+
+<h1><span class="n">10</span>Operation Lifecycle</h1>
+
+<h2><span class="n">10.1</span>States</h2>
+<figure>
+SVG_LIFECYCLE
+<figcaption><b>Figure 8.</b> The operation lifecycle. Retry re-enters the queue rather than restarting
+execution, so every attempt is planned and admitted afresh. The <code>Unavailable</code> and
+<code>Relocating</code> states exist so that the loss of a pinned inference node is a recoverable
+condition rather than a terminal failure.</figcaption>
+</figure>
+
+<div class="req"><span class="rid">R-53</span>
+<p>The terminal states are <code>Succeeded</code>, <code>Failed</code>, <code>Cancelled</code>,
+<code>Expired</code> and <code>Rejected</code>. An operation in a terminal state
+<span class="kw">MUST NOT</span> transition to any other state.</p></div>
+
+<div class="req"><span class="rid">R-54</span>
+<p>A retry <span class="kw">MUST</span> re-enter the lifecycle at <code>Queued</code>, not at
+<code>Starting</code>, so that it is re-planned and re-admitted.</p></div>
+
+<h2><span class="n">10.2</span>Cancellation</h2>
+<p>Cancellation changes durable intent. It is not a message that races the workload.</p>
+
+<div class="req"><span class="rid">R-55</span>
+<p>Cancellation <span class="kw">MUST</span> be recorded as a change of desired state. A delayed start
+command <span class="kw">MUST NOT</span> revive a cancelled workload: commands are wake-up hints, and the
+worker <span class="kw">MUST</span> always read the newest desired state before acting.</p></div>
+
+<h2><span class="n">10.3</span>Expiration and Extension</h2>
+<div class="req"><span class="rid">R-56</span>
+<p>For time-bound operations, <code>expires_at</code> <span class="kw">MUST</span> be computed as
+<code>admitted_at + approved_duration</code>. The clock <span class="kw">MUST</span> start at admission,
+not at submission &mdash; time spent queueing is not time the user received.</p></div>
+
+<div class="req"><span class="rid">R-57</span>
+<p>Expiration and extension <span class="kw">MUST</span> use an expected database version, so that a
+stale expiry scanner cannot overwrite a newly approved extension.</p></div>
+
+<h2><span class="n">10.4</span>Retry and Failure Classification</h2>
+<p>Whether a failure is retried depends on whether retrying could possibly help. Infrastructure failures
+are transient by nature; specification and application errors are not.</p>
+
+<div class="req"><span class="rid">R-58</span>
+<p>The following <span class="kw">MUST</span> be retried automatically, up to a policy-configured
+<code>max_attempts</code>:</p>
+<ul>
+<li>Node loss</li>
+<li>Infrastructure eviction or preemption</li>
+<li>Spot interruption</li>
+<li>Transient registry or network failure</li>
+<li>Cluster capacity disappearing after placement</li>
+</ul></div>
+
+<div class="req"><span class="rid">R-59</span>
+<p>The following <span class="kw">MUST NOT</span> be retried automatically:</p>
+<ul>
+<li>Invalid image, or image not found</li>
+<li>Image authorization failure</li>
+<li>Invalid command or specification</li>
+<li>Application non-zero exit</li>
+<li>RBAC or policy rejection</li>
+<li>Deterministic out-of-memory from insufficient requested memory</li>
+</ul></div>
+
+<div class="req"><span class="rid">R-60</span>
+<p>A failure whose cause cannot be determined <span class="kw">MUST NOT</span> be retried automatically.
+The reason <span class="kw">MUST</span> be preserved, and an explicit user or operator retry
+<span class="kw">MUST</span> be permitted. Such a retry <span class="kw">MUST</span> still allocate its
+attempt number through the transaction required by R-13.</p></div>
+
+<div class="note"><span class="lbl">Classifying out-of-memory</span>
+<p>Training and research share nodes, so an <code>OOMKilled</code> Pod may have been starved by a
+co-tenant rather than by its own request being too small. Classification
+<span class="kw">SHOULD</span> compare observed usage against the request and limit rather than relying
+on the kill reason alone.</p></div>
+
+<h2><span class="n">10.5</span>Node Loss and Recovery Policy</h2>
+<p>An inference model has exactly one active placement. When its node is lost, the recovery policy
+decides whether the placement is held or moved. Either way, <code>Failed</code> is not used: a terminal
+state would make a maintenance reboot permanently destroy a production service.</p>
+
+<pre><span class="c">HoldPlacement</span>   Running → Unavailable → Starting → Running
+                              │
+                              └── wait for the pinned node to return
+
+<span class="c">Relocate</span>        Running → Unavailable → Relocating → Starting → Running
+                              │
+                              └── placement.generation += 1, new node permitted</pre>
+
+<div class="req"><span class="rid">R-61</span>
+<p>Loss of a pinned node <span class="kw">MUST</span> place the operation in the non-terminal
+<code>Unavailable</code> state with reason <code>PinnedNodeUnavailable</code>. It
+<span class="kw">MUST NOT</span> be recorded as <code>Failed</code>.</p></div>
+
+<div class="req"><span class="rid">R-62</span>
+<p>Under <code>HoldPlacement</code> the binding <span class="kw">MUST</span> remain fixed for the
+operation's lifetime unless the user changes it. Under <code>Relocate</code> the binding
+<span class="kw">MUST</span> remain fixed within a placement generation, and relocation
+<span class="kw">MUST</span> increment <code>placement.generation</code>.</p></div>
+
+<div class="req"><span class="rid">R-63</span>
+<p>A <code>PinnedNodeUnavailable</code> condition that persists <span class="kw">MUST</span> raise an
+alert. Under <code>HoldPlacement</code> an operation will otherwise wait indefinitely on a node that may
+never return, presenting as managed while serving nothing.</p></div>
+
+<p>Node loss for training and research does not use these states. Those workloads have no pinned
+placement to wait for, and follow the retry path of Section 10.4 instead.</p>

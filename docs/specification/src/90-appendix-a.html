@@ -1,0 +1,139 @@
+<div class="appendix">
+<h1><span class="n">A</span>Design Decisions</h1>
+<p>This appendix records the reasoning behind the normative text. Each entry states what was chosen, why,
+and what it costs. A decision recorded without a cost is a decision that was not examined.</p>
+<h3><span class="n">A.1</span>Python control plane, Go worker pool</h3>
+<p><strong>Decision.</strong> The API, planner, policy engine and scanner are Python; the worker pool is Go.</p>
+<p><strong>Rationale.</strong> The control plane never calls Kubernetes, so it gains nothing from a Kubernetes client library. The worker does, and Go is where the mature controller tooling lives: shared informer caching, resync, rate-limited requeue, typed Server-Side Apply, and first-class APIs for Kueue and the training operators. The split is cheap because PostgreSQL is already the contract between the two.</p>
+<p><strong>Trade-off.</strong> Two toolchains and two dependency streams; and the state machine would exist twice, which is why A.6 moves it into the database.</p>
+
+<h3><span class="n">A.2</span>Web UI served by the API</h3>
+<p><strong>Decision.</strong> React and TypeScript, built to static assets and served by the API process.</p>
+<p><strong>Rationale.</strong> One origin, no CORS, one deployable. The UI reaches PostgreSQL only through the API, which makes the read-replica prohibition structural rather than a rule to remember.</p>
+<p><strong>Trade-off.</strong> UI releases couple to API releases, and there is no server-side rendering.</p>
+
+<h3><span class="n">A.3</span>The worker reconciles the custom resources</h3>
+<p><strong>Decision.</strong> The worker applies the resources and reconciles them into workloads. There is no separate operator.</p>
+<p><strong>Rationale.</strong> One actor owns the chain, so there is one reconcile loop to debug and no second system to keep in step.</p>
+<p><strong>Trade-off.</strong> Nothing continues reconciling if the worker pool is down.</p>
+
+<h3><span class="n">A.4</span>One control-plane package, three entrypoints</h3>
+<p><strong>Decision.</strong> A single package exposing api, planner and scanner, deployed as separate Deployments.</p>
+<p><strong>Rationale.</strong> All three claim work with the same row-locking protocol, so all three scale horizontally and none needs leader election or a singleton guarantee.</p>
+<p><strong>Trade-off.</strong> The claiming query must be written as SQL rather than expressed through the object-relational layer.</p>
+
+<h3><span class="n">A.5</span>Hand-written migrations</h3>
+<p><strong>Decision.</strong> Migrations are authored by hand; object-relational models are a query layer, not the schema's author. A drift check runs in CI.</p>
+<p><strong>Rationale.</strong> The schema carries real logic — a transition function, a trigger, partial indexes on the queue hot path, fencing semantics. Generated migrations would either omit those objects or repeatedly propose to drop them.</p>
+<p><strong>Trade-off.</strong> No autogenerate convenience for routine column additions.</p>
+
+<h3><span class="n">A.6</span>The lifecycle is enforced in PostgreSQL</h3>
+<p><strong>Decision.</strong> A transition function is the write path; a trigger is the backstop against ad-hoc updates.</p>
+<p><strong>Rationale.</strong> The protocol is already expressed in SQL: queue transitions, the re-arm decision, fencing, and version-checked expiry are all statements. With two languages writing to one database, an invariant implemented in application code is an invariant implemented twice.</p>
+<p><strong>Trade-off.</strong> PL/pgSQL to maintain and review, and logic that is harder to unit test than a class.</p>
+
+<h3><span class="n">A.7</span>LDAP only, with E.C.H.O-issued sessions</h3>
+<p><strong>Decision.</strong> Authentication binds against the directory; the API issues its own revocable server-side session. owner_subject holds an immutable directory identifier.</p>
+<p><strong>Rationale.</strong> A deployment constraint. LDAP offers no portable signed assertion, so there is no token to validate per request and the API must own sessions. An immutable subject matters because it is half the idempotency key.</p>
+<p><strong>Trade-off.</strong> No single sign-on, and the API becomes a credential-handling surface.</p>
+
+<h3><span class="n">A.8</span>Multi-cluster with cluster-agnostic workers</h3>
+<p><strong>Decision.</strong> Any worker can materialize any plan in that plan's target cluster.</p>
+<p><strong>Rationale.</strong> Target cluster is part of the plan, so the fleet is addressable from one control plane without per-cluster control-plane deployments.</p>
+<p><strong>Trade-off.</strong> One process holds credentials for the whole fleet and a controller cache per cluster, so memory grows with cluster count and one unhealthy cluster must be prevented from starving the others.</p>
+
+<h3><span class="n">A.9</span>Directory mirror with refresh at login</h3>
+<p><strong>Decision.</strong> A synchronizer mirrors users and groups into PostgreSQL; groups are re-resolved at login.</p>
+<p><strong>Rationale.</strong> Authorization becomes a local join, so a directory outage does not stop submissions. Without a token carrying group claims, the alternative is querying the directory on the submission path.</p>
+<p><strong>Trade-off.</strong> A staleness window between cycles, which matters most for removal from a group.</p>
+
+<h3><span class="n">A.10</span>One policy snapshot per operation</h3>
+<p><strong>Decision.</strong> The resolved decision is snapshotted at submission. Extensions are re-evaluated against current policy and recorded as events.</p>
+<p><strong>Rationale.</strong> A tightened limit then takes effect immediately, and a user who has left a team cannot keep extending on its allowance.</p>
+<p><strong>Trade-off.</strong> An extension can be refused that would have been granted a day earlier, so the refusal must explain itself.</p>
+
+<h3><span class="n">A.11</span>Policy binds; a human may exceed it</h3>
+<p><strong>Decision.</strong> approved_duration defaults to the policy limit. An approver may grant more, recorded as an explicit exception.</p>
+<p><strong>Rationale.</strong> A hard ceiling with no override forces every genuine exception into a policy edit that then applies to the whole group. An override recorded as an exception keeps the limit meaningful and the exception visible.</p>
+<p><strong>Trade-off.</strong> An approval path and its interface, and a decision a human must now justify.</p>
+
+<h3><span class="n">A.12</span>Per-project namespaces, two workload identities</h3>
+<p><strong>Decision.</strong> echo-&lt;project&gt;-&lt;type&gt; namespaces; controller identities isolated in echo-access.</p>
+<p><strong>Rationale.</strong> The namespace is the unit that carries quota, storage, NetworkPolicy, RBAC and the queue. Splitting the identities moves the isolation boundary from the cluster to the authorization layer, so a fault in the compute reconciler cannot reach an inference service.</p>
+<p><strong>Trade-off.</strong> Many namespaces, and a RoleBinding set per project that must be provisioned.</p>
+
+<h3><span class="n">A.13</span>A dedicated, tainted inference node pool</h3>
+<p><strong>Decision.</strong> Inference nodes are tainted and inference runs non-preemptibly.</p>
+<p><strong>Rationale.</strong> Namespaces isolate authorization, not resources. Hard node separation is what actually protects the workload serving live traffic.</p>
+<p><strong>Trade-off.</strong> Idle inference nodes cannot absorb training work.</p>
+
+<h3><span class="n">A.14</span>Project provisioning reconciles a row</h3>
+<p><strong>Decision.</strong> A project is desired state in PostgreSQL; a worker reconciles it into namespaces, RBAC, quota, NetworkPolicy and queues, under a third cluster-scoped identity.</p>
+<p><strong>Rationale.</strong> Provisioning is a Kubernetes write, so doing it from the API would break the control-plane boundary. Reconciling from a row is idempotent on retry and gets field ownership for free. The separate identity means that whatever can create namespaces cannot run workloads.</p>
+<p><strong>Trade-off.</strong> Project creation is eventually consistent; the API returns before the namespaces exist.</p>
+
+<h3><span class="n">A.15</span>Two ClusterQueues per team, in two cohorts</h3>
+<p><strong>Decision.</strong> A compute queue over the shared pool and an inference queue over the tainted pool.</p>
+<p><strong>Rationale.</strong> A queue spanning both pools would admit against capacity the workload cannot use. Borrowing within the compute cohort is what turns idle training capacity into usable research capacity.</p>
+<p><strong>Trade-off.</strong> Preempted compute workloads must tolerate being killed.</p>
+
+<h3><span class="n">A.16</span>Milestones are observability, not control flow</h3>
+<p><strong>Decision.</strong> Orchestration progress is recorded continuously and bound to the operation, never to a Pod.</p>
+<p><strong>Rationale.</strong> Recording progress is useful; branching on it is not. A reconciler that skips work because a milestone says it is done is wrong the moment an object is deleted behind it. Re-deriving from observed state is correct by construction.</p>
+<p><strong>Trade-off.</strong> There is no lifecycle state that displays 'saving progress', and milestones do not make resumption faster — they make it auditable.</p>
+
+<h3><span class="n">A.17</span>Failures are classified before they are retried</h3>
+<p><strong>Decision.</strong> Infrastructure failures retry automatically; specification and application errors do not; unknown causes require an explicit retry.</p>
+<p><strong>Rationale.</strong> Retrying an invalid image cannot succeed; it only delays the user's error message and consumes GPU time.</p>
+<p><strong>Trade-off.</strong> A classifier to maintain, and out-of-memory is genuinely ambiguous on shared nodes.</p>
+
+<h3><span class="n">A.18</span>The submitter chooses the cluster</h3>
+<p><strong>Decision.</strong> The planner validates the requested cluster rather than ranking candidates.</p>
+<p><strong>Rationale.</strong> Predictable, and it keeps E.C.H.O away from anything resembling capacity arbitration. It also means a retry cannot migrate to a cluster lacking the operation's data.</p>
+<p><strong>Trade-off.</strong> No automatic failover, and hot and cold clusters, since nothing balances between them.</p>
+
+<h3><span class="n">A.19</span>Per-cluster ServiceAccount tokens</h3>
+<p><strong>Decision.</strong> Each cluster defines the controller identities; their tokens are held where the workers run.</p>
+<p><strong>Rationale.</strong> Simple and native, and RBAC stays enforced by each target cluster rather than by E.C.H.O.</p>
+<p><strong>Trade-off.</strong> One location holds fleet-wide credentials, and rotation is per-cluster.</p>
+
+<h3><span class="n">A.20</span>The model is the inference scheduling unit</h3>
+<p><strong>Decision.</strong> One model, one node, whole GPUs, pinned after placement. No partitioning, no multi-node models.</p>
+<p><strong>Rationale.</strong> Pinning is achieved by observing the scheduler's choice and remembering it, never by choosing a node, so no component counts free GPUs.</p>
+<p><strong>Trade-off.</strong> A single active placement means a model is unavailable during node loss or relocation.</p>
+
+<h3><span class="n">A.21</span>Allocated and observed usage are stored apart</h3>
+<p><strong>Decision.</strong> Aggregated into PostgreSQL on an interval; raw series stay in Prometheus.</p>
+<p><strong>Rationale.</strong> Chargeback bills allocation and efficiency review reads utilization. One number cannot serve both, and collapsing them hides idle-but-allocated GPUs.</p>
+<p><strong>Trade-off.</strong> Inference usage accrues indefinitely, so the usage tables need the same partitioning as the audit tables.</p>
+
+<h3><span class="n">A.22</span>Audit history is retained</h3>
+<p><strong>Decision.</strong> Monthly partitions, retained; cold partitions archived rather than dropped.</p>
+<p><strong>Rationale.</strong> Audit history is a product of the platform, not a byproduct.</p>
+<p><strong>Trade-off.</strong> Partition maintenance becomes a scheduled job that must not fail silently.</p>
+
+<h3><span class="n">A.23</span>Sessions are opaque and revocable</h3>
+<p><strong>Decision.</strong> The session is a row, killed instantly on logout or on directory removal.</p>
+<p><strong>Rationale.</strong> With no identity provider there is nothing else to enforce deprovisioning. A self-contained token would keep a dismissed user's access valid until expiry.</p>
+<p><strong>Trade-off.</strong> A database lookup per request, which is trivial next to the work being authorized.</p>
+
+<h3><span class="n">A.24</span>Kubernetes is authoritative for runtime state</h3>
+<p><strong>Decision.</strong> PostgreSQL owns intent, plan, queue, audit and usage; once an execution exists, the cluster owns what is running.</p>
+<p><strong>Rationale.</strong> This is the ownership table read from the other side. Stating it explicitly prevents the common error of treating a stale Running row as fact.</p>
+<p><strong>Trade-off.</strong> Reporting is a projection and can lag; correctness decisions must not read it.</p>
+
+<h3><span class="n">A.25</span>Policy is data in PostgreSQL</h3>
+<p><strong>Decision.</strong> Quotas, durations, priority ceilings and permitted flavors are rows, edited through the administrative interface.</p>
+<p><strong>Rationale.</strong> Keeping policy where the snapshot reads it means no external engine sits on the admission path, and policy changes are audited by the same machinery as everything else.</p>
+<p><strong>Trade-off.</strong> Genuinely conditional policy is awkward as rows, and there is no policy-as-code review flow.</p>
+
+<h3><span class="n">A.26</span>An operation-scoped parent resource</h3>
+<p><strong>Decision.</strong> EchoOperation parents the attempt-scoped EchoExecution and owns placement, availability and the endpoint.</p>
+<p><strong>Rationale.</strong> An attempt-scoped resource cannot own anything that must outlive an attempt. Placement is observed runtime state, so it belongs in the cluster rather than in PostgreSQL — the mirror image of where milestones belong.</p>
+<p><strong>Trade-off.</strong> A second custom resource and controller, and a parent/child status relationship that can disagree with itself.</p>
+
+<h3><span class="n">A.27</span>Two workload models</h3>
+<p><strong>Decision.</strong> Research and Training supply an opaque image; Inference is a managed service on E.C.H.O's runtime.</p>
+<p><strong>Rationale.</strong> The two want opposite things. Research and Training are open-ended and the user's code is the point. Inference is a product surface, and owning the runtime is what makes validation, upgrades and a durable endpoint possible at all.</p>
+<p><strong>Trade-off.</strong> A client wanting a different serving stack cannot have one, and E.C.H.O takes on permanent maintenance of a runtime image and a validator that must track it.</p>
+</div>

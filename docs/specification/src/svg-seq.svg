@@ -1,0 +1,93 @@
+<svg viewBox="0 0 960 700" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,-apple-system,Helvetica Neue,sans-serif">
+<style>
+ .lane{stroke:#ccd4dd;stroke-width:1;stroke-dasharray:3 4}
+ .ht{font-size:10.5px;font-weight:700;text-anchor:middle;fill:#fff}
+ .hs{font-size:7.5px;text-anchor:middle;fill:#fff;opacity:.85}
+ .m{stroke:#2b6cb0;stroke-width:1.4;fill:none;marker-end:url(#ar-b)}
+ .r{stroke:#2f6f4e;stroke-width:1.4;fill:none;stroke-dasharray:5 3;marker-end:url(#ar-g)}
+ .a{stroke:#553c9a;stroke-width:1.4;fill:none;marker-end:url(#ar-p)}
+ .mt{font-size:9.5px;fill:#232a35}
+ .ph{font-size:8.5px;letter-spacing:.14em;font-weight:700;fill:#8994a3;text-anchor:end}
+</style>
+<rect x="14" y="64" width="932" height="132" rx="5" fill="#f7f9fb"/>
+<text class="ph" x="938" y="78">01 · SUBMISSION</text>
+<rect x="14" y="204" width="932" height="96" rx="5" fill="#f7f9fb"/>
+<text class="ph" x="938" y="218">02 · IMMUTABLE PLANNING</text>
+<rect x="14" y="308" width="932" height="104" rx="5" fill="#f7f9fb"/>
+<text class="ph" x="938" y="322">03 · RECONCILIATION</text>
+<rect x="14" y="420" width="932" height="116" rx="5" fill="#f7f9fb"/>
+<text class="ph" x="938" y="434">04 · ADMISSION & PLACEMENT</text>
+<rect x="14" y="544" width="932" height="124" rx="5" fill="#f7f9fb"/>
+<text class="ph" x="938" y="558">05 · OBSERVATION & FINALIZATION</text>
+<line class="lane" x1="55" y1="52" x2="55" y2="678"/>
+<rect x="12" y="14" width="86" height="32" rx="4" fill="#4a5568"/>
+<text class="ht" x="55" y="30">User</text><text class="hs" x="55" y="41">submitter</text>
+<line class="lane" x1="160" y1="52" x2="160" y2="678"/>
+<rect x="112" y="14" width="96" height="32" rx="4" fill="#1d4e79"/>
+<text class="ht" x="160" y="30">E.C.H.O API</text><text class="hs" x="160" y="41">auth · intent</text>
+<line class="lane" x1="266" y1="52" x2="266" y2="678"/>
+<rect x="220" y="14" width="92" height="32" rx="4" fill="#2f6f4e"/>
+<text class="ht" x="266" y="30">PostgreSQL</text><text class="hs" x="266" y="41">writer</text>
+<line class="lane" x1="372" y1="52" x2="372" y2="678"/>
+<rect x="324" y="14" width="96" height="32" rx="4" fill="#2c6e7a"/>
+<text class="ht" x="372" y="30">Planner</text><text class="hs" x="372" y="41">policy · plan</text>
+<line class="lane" x1="478" y1="52" x2="478" y2="678"/>
+<rect x="435" y="14" width="86" height="32" rx="4" fill="#9b2c2c"/>
+<text class="ht" x="478" y="30">Worker</text><text class="hs" x="478" y="41">reconciler</text>
+<line class="lane" x1="584" y1="52" x2="584" y2="678"/>
+<rect x="529" y="14" width="110" height="32" rx="4" fill="#2b6cb0"/>
+<text class="ht" x="584" y="30">Kubernetes API</text><text class="hs" x="584" y="41">desired · observed</text>
+<line class="lane" x1="690" y1="52" x2="690" y2="678"/>
+<rect x="654" y="14" width="72" height="32" rx="4" fill="#553c9a"/>
+<text class="ht" x="690" y="30">Kueue</text><text class="hs" x="690" y="41">quota</text>
+<line class="lane" x1="790" y1="52" x2="790" y2="678"/>
+<rect x="744" y="14" width="92" height="32" rx="4" fill="#3d4551"/>
+<text class="ht" x="790" y="30">Scheduler</text><text class="hs" x="790" y="41">node binding</text>
+<line class="lane" x1="888" y1="52" x2="888" y2="678"/>
+<rect x="848" y="14" width="80" height="32" rx="4" fill="#2f6f4e"/>
+<text class="ht" x="888" y="30">GPU Pod</text><text class="hs" x="888" y="41">execution</text>
+<path class="m" d="M55,98 L160,98"/>
+<text class="mt" x="61" y="92">POST /operations + Idempotency-Key</text>
+<path class="m" d="M160,118 L190,118 L190,133 L160,133"/>
+<text class="mt" x="200" y="129">authenticate · resolve groups from the mirror</text>
+<path class="m" d="M160,158 L266,158"/>
+<text class="mt" x="166" y="152">one transaction: operation + revision + queue + event</text>
+<path class="r" d="M266,176 L160,176"/>
+<text class="mt" x="166" y="170">operation id</text>
+<path class="r" d="M160,192 L55,192"/>
+<text class="mt" x="61" y="186">202 Accepted</text>
+<path class="m" d="M372,236 L266,236"/>
+<text class="mt" x="272" y="230">claim unplanned operation</text>
+<path class="m" d="M372,256 L402,256 L402,271 L372,271"/>
+<text class="mt" x="412" y="267">validate policy · confirm the requested cluster</text>
+<path class="m" d="M372,292 L266,292"/>
+<text class="mt" x="272" y="286">store immutable execution plan</text>
+<path class="m" d="M478,340 L266,340"/>
+<text class="mt" x="272" y="334">claim reconcile row — lease + claim_epoch</text>
+<path class="m" d="M478,360 L266,360"/>
+<text class="mt" x="272" y="354">read latest desired generation</text>
+<path class="m" d="M478,380 L584,380"/>
+<text class="mt" x="484" y="374">apply EchoOperation + EchoExecution (Server-Side Apply)</text>
+<path class="m" d="M478,400 L266,400"/>
+<text class="mt" x="272" y="394">record Dispatching milestone</text>
+<path class="m" d="M478,452 L584,452"/>
+<text class="mt" x="484" y="446">apply workload owned by EchoExecution</text>
+<path class="a" d="M584,472 L690,472"/>
+<text class="mt" x="590" y="466">workload waits for quota</text>
+<path class="r" d="M690,492 L584,492"/>
+<text class="mt" x="590" y="486">reserve quota and admit</text>
+<path class="m" d="M584,512 L790,512"/>
+<text class="mt" x="590" y="506">schedule admitted Pods</text>
+<path class="m" d="M790,530 L888,530"/>
+<text class="mt" x="796" y="524">bind node · allocate whole GPUs</text>
+<path class="m" d="M478,576 L584,576"/>
+<text class="mt" x="484" y="570">observe execution</text>
+<path class="m" d="M478,598 L266,598"/>
+<text class="mt" x="272" y="592">upsert Running projection · record observed node</text>
+<path class="r" d="M888,622 L584,622"/>
+<text class="mt" x="590" y="616">completion or failure</text>
+<path class="m" d="M478,642 L584,642"/>
+<text class="mt" x="484" y="636">observe terminal state</text>
+<path class="m" d="M478,662 L266,662"/>
+<text class="mt" x="272" y="656">record result and usage — carrying the fencing token</text>
+</svg>

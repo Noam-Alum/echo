@@ -126,7 +126,9 @@ Training is the first vertical slice: it has a clear beginning and a terminal re
 | `docs/context/06-decisions.md` | **D1–D27** — every answered question, with rationale and trade-offs |
 | `docs/context/07-implementation-plan.md` | Build order as small reviewable PRs, with per-step review checklists |
 | `docs/context/99-open-questions.md` | What remains open, including questions the decisions created |
-| `docs/specification/E.C.H.O.pdf` | Authoritative source (13 pages) |
+| `docs/specification/E.C.H.O-Platform-Specification.pdf` | **The specification** (48 pages) — RFC-style, 82 numbered requirements, 10 diagrams; standalone and supersedes the original |
+| `docs/specification/src/` | Sources for that PDF; `./make.sh` rebuilds it |
+| `docs/specification/E.C.H.O.pdf` | The original brief (13 pages), kept for provenance |
 
 ## Conventions in these documents
 

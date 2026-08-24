@@ -1,0 +1,188 @@
+<h1><span class="n">5</span>Data Model and Persistence</h1>
+
+<h2><span class="n">5.1</span>Authority and Projection</h2>
+<p>PostgreSQL holds the original submission, the immutable execution plan, the queue, audit history,
+usage accounting, and projections of Kubernetes state. Once an <code>EchoExecution</code> exists,
+Kubernetes is authoritative for runtime state; PostgreSQL's <code>Dispatching</code>,
+<code>Running</code> and terminal records are projections of it.</p>
+
+<div class="req"><span class="rid">R-17</span>
+<p>An implementation <span class="kw">MUST NOT</span> treat a PostgreSQL runtime record as independent
+truth about what is running. Reconciliation decisions <span class="kw">MUST</span> be driven by observed
+cluster state.</p></div>
+
+<h2><span class="n">5.2</span>Core Tables</h2>
+<table>
+<tr><th style="width:30%">Table</th><th>Role</th></tr>
+<tr><td><code>compute_operation</code></td><td>The submitted operation and its policy snapshot</td></tr>
+<tr><td><code>operation_revision</code></td><td>Versions of desired state</td></tr>
+<tr><td><code>reconcile_queue</code></td><td>The durable work queue workers claim from</td></tr>
+<tr><td><code>operation_event</code></td><td>Audit and event trail, including milestones and approvals</td></tr>
+</table>
+
+<h2><span class="n">5.3</span>The Four Counters</h2>
+<p>Four independent counters exist. Conflating any two of them breaks a different guarantee, and they are
+the most common source of confusion in implementations.</p>
+
+<figure>
+SVG_COUNTERS
+<figcaption><b>Figure 4.</b> The four counters over one operation's life. Note the nesting: several
+attempts run under a single placement generation, and several claim epochs may occur within one attempt.
+A worker stalling and being replaced moves only <code>claim_epoch</code>.</figcaption>
+</figure>
+
+<table>
+<tr><th style="width:23%">Counter</th><th style="width:32%">Increments when</th><th>Lives in</th></tr>
+<tr><td><code>desired_generation</code></td><td>The user or policy changes intent</td><td><code>compute_operation</code>, <code>reconcile_queue</code></td></tr>
+<tr><td><code>claim_epoch</code></td><td>A worker claims or re-claims the queue row</td><td><code>reconcile_queue</code></td></tr>
+<tr><td><code>attempt_number</code></td><td>A physical execution failed and is retried</td><td>Attempt identity and CR name</td></tr>
+<tr><td><code>placement.generation</code></td><td>A <code>Relocate</code> binding moves to a new node</td><td><code>EchoOperation.status</code></td></tr>
+</table>
+
+<div class="req"><span class="rid">R-18</span>
+<p>A worker that stalls and is replaced <span class="kw">MUST</span> cause only <code>claim_epoch</code>
+to advance. It <span class="kw">MUST NOT</span> produce a new revision, because desired state has not
+changed, and <span class="kw">MUST NOT</span> produce a new attempt: the replacement worker
+<span class="kw">MUST</span> adopt the existing objects by their deterministic names.</p></div>
+
+<p>The first three counters live in PostgreSQL, which owns desired state and the queue. The fourth lives
+in <code>EchoOperation.status</code>, because an observed node binding is runtime state that the cluster
+owns. Revision 1 exists before any worker sees the operation: the submission transaction creates it.</p>
+
+<h2><span class="n">5.4</span>Lifecycle Enforcement</h2>
+<p>The operation state machine is enforced in the database, not in application code. This is not an
+optimization: the control plane and the worker are written in different languages, and an invariant
+implemented twice is an invariant that will eventually disagree with itself.</p>
+
+<div class="req"><span class="rid">R-19</span>
+<p>A transition function in PostgreSQL <span class="kw">MUST</span> be the write path for operation state
+changes. It <span class="kw">MUST</span> provide a create path as well as a transition path, because
+submission is itself an entry into the state machine. It <span class="kw">MUST</span> accept an expected
+version and reject the write when the version does not match.</p></div>
+
+<div class="req"><span class="rid">R-20</span>
+<p>A trigger <span class="kw">MUST</span> enforce the terminal-state rule independently of the transition
+function, so that an ad-hoc <code>UPDATE</code> cannot move an operation backwards out of
+<code>Succeeded</code>, <code>Failed</code>, <code>Cancelled</code>, <code>Expired</code> or
+<code>Rejected</code>.</p></div>
+
+<h2><span class="n">5.5</span>Schema Management</h2>
+<p>Because the schema carries real logic &mdash; the transition function, the trigger, partial indexes on
+the queue hot path, and the semantics of the fencing columns &mdash; it is authored deliberately rather
+than generated from object-relational models.</p>
+
+<div class="req"><span class="rid">R-21</span>
+<p>Migrations <span class="kw">MUST</span> be hand-written. Object-relational models
+<span class="kw">MUST NOT</span> be the source of the schema. A drift check between models and the live
+schema <span class="kw">SHOULD</span> run in continuous integration.</p></div>
+
+<div class="req"><span class="rid">R-22</span>
+<p>The control plane <span class="kw">MUST</span> own migration execution. Workers
+<span class="kw">MUST NOT</span> run migrations, and <span class="kw">MUST</span> verify a schema version
+at startup and refuse to start if it is older than they require.</p></div>
+
+<h1><span class="n">6</span>Submission</h1>
+
+<h2><span class="n">6.1</span>Authentication</h2>
+<p>Authentication is performed against LDAP. LDAP offers bind and search but no portable signed
+assertion, so there is no token for the API to validate per request. The API therefore binds against the
+directory at login and issues its own session.</p>
+
+<div class="req"><span class="rid">R-23</span>
+<p>The API <span class="kw">MUST</span> issue an opaque, server-side session recorded in PostgreSQL. The
+session <span class="kw">MUST</span> be revocable with immediate effect. Self-contained bearer tokens that
+cannot be revoked <span class="kw">MUST NOT</span> be used.</p></div>
+
+<div class="req"><span class="rid">R-24</span>
+<p><code>owner_subject</code> <span class="kw">MUST</span> hold an immutable directory identifier &mdash;
+<code>objectGUID</code> on Active Directory, <code>entryUUID</code> on OpenLDAP. It
+<span class="kw">MUST NOT</span> hold a distinguished name, which changes when a user moves organizational
+unit, nor <code>sAMAccountName</code> or <code>uid</code>, which can be renamed and reused. Distinguished
+name and username <span class="kw">MAY</span> be stored for display only.</p></div>
+
+<div class="note"><span class="lbl">Why this one matters</span>
+<p><code>owner_subject</code> is half of the idempotency key. A mutable subject means that renaming a
+user silently breaks idempotency for that user &mdash; a retried submission would create a duplicate
+operation rather than returning the original.</p></div>
+
+<div class="req"><span class="rid">R-25</span>
+<p>All directory connections <span class="kw">MUST</span> use LDAPS or StartTLS; simple bind transmits
+credentials in cleartext. Bind attempts <span class="kw">MUST</span> be rate-limited, because a retry loop
+against a directory with an account-lockout policy will lock out real users.</p></div>
+
+<div class="req"><span class="rid">R-26</span>
+<p>Group resolution <span class="kw">MUST</span> account for nested groups. On Active Directory this
+requires <code>LDAP_MATCHING_RULE_IN_CHAIN</code> (OID <code>1.2.840.113556.1.4.1941</code>) or a
+recursive search; a flat <code>memberOf</code> read misses indirect membership.</p></div>
+
+<h3><span class="n">6.1.1</span>Directory synchronization</h3>
+<p>A synchronizer mirrors users and group membership into PostgreSQL on an interval, and a user's groups
+are re-resolved at login. Authorization is therefore a local join, and a directory outage does not stop
+submissions.</p>
+
+<div class="req"><span class="rid">R-27</span>
+<p>The synchronizer <span class="kw">MUST</span> revoke the sessions of users who have been disabled or
+removed in the directory. With no external identity provider, this is the only mechanism that enforces
+deprovisioning.</p></div>
+
+<h2><span class="n">6.2</span>Idempotency</h2>
+<div class="req"><span class="rid">R-28</span>
+<p>Submission <span class="kw">MUST</span> require a client idempotency key, and the schema
+<span class="kw">MUST</span> enforce <code>UNIQUE (owner_subject, idempotency_key)</code>. A retried
+request <span class="kw">MUST</span> return the original operation rather than creating a duplicate.</p></div>
+
+<p>The conflict is resolved without aborting the transaction:</p>
+<pre><span class="k">INSERT INTO</span> compute_operation (...)
+<span class="k">ON CONFLICT</span> (owner_subject, idempotency_key) <span class="k">DO NOTHING</span>
+<span class="k">RETURNING</span> operation_id;
+<span class="c">-- no row returned: select and return the existing operation</span></pre>
+
+<h2><span class="n">6.3</span>The Submission Transaction</h2>
+<div class="req"><span class="rid">R-29</span>
+<p>Submission <span class="kw">MUST</span> be a single PostgreSQL transaction. If it fails, nothing
+<span class="kw">MUST</span> have been submitted.</p></div>
+
+<pre><span class="k">BEGIN</span>;
+
+<span class="k">INSERT INTO</span> compute_operation (...);
+<span class="k">INSERT INTO</span> operation_revision (...);
+<span class="k">INSERT INTO</span> reconcile_queue (...);
+<span class="k">INSERT INTO</span> operation_event (...);
+
+<span class="k">COMMIT</span>;</pre>
+
+<p>The API responds <code>202 Accepted</code> with the operation identifier. Planning, admission and
+execution proceed asynchronously.</p>
+
+<h2><span class="n">6.4</span>Policy and Approval</h2>
+<p>Policy is data in PostgreSQL &mdash; per-group quotas, maximum durations, priority ceilings and
+permitted GPU flavors &mdash; maintained by platform administrators through the E.C.H.O administrative
+interface.</p>
+
+<div class="req"><span class="rid">R-30</span>
+<p>The resolved policy decision &mdash; groups, limits, priority ceiling and approved duration &mdash;
+<span class="kw">MUST</span> be snapshotted onto the operation at submission.</p></div>
+
+<div class="req"><span class="rid">R-31</span>
+<p>Platform limits <span class="kw">MUST</span> be evaluated by the policy engine before a workload
+reaches Kueue. Kueue enforces cluster quota only and <span class="kw">MUST NOT</span> be relied upon to
+apply organizational policy.</p></div>
+
+<h3><span class="n">6.4.1</span>Approved duration and exceptions</h3>
+<p><code>approved_duration</code> defaults to the policy limit for the requesting group and workload type.
+Requests within the limit require no human involvement. An approver may grant more than the limit.</p>
+
+<div class="req"><span class="rid">R-32</span>
+<p>An approval that exceeds a policy limit <span class="kw">MUST</span> be recorded as an explicit
+exception in <code>operation_event</code>, carrying the approver's identity and the limit exceeded. It
+<span class="kw">MUST NOT</span> be folded silently into <code>approved_duration</code> as though policy
+had permitted it.</p></div>
+
+<div class="req"><span class="rid">R-33</span>
+<p>An extension request <span class="kw">MUST</span> be evaluated against policy and group membership as
+they stand at the time of the request, not against the snapshot taken at submission. The resulting
+decision <span class="kw">MUST</span> be recorded as an <code>operation_event</code>.</p></div>
+
+<p>A tightened limit therefore takes effect immediately, and a user who has left a team cannot continue
+extending on that team's allowance. Because an extension can be refused that would have been granted
+earlier, the refusal message <span class="kw">SHOULD</span> state which limit applied.</p>
