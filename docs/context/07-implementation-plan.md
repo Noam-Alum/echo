@@ -45,9 +45,9 @@ control-plane/          # Python 3.12, FastAPI. D1, D4
   tests/
 worker/                 # Go, controller-runtime. D1, D3
   api/v1alpha1/         # EchoOperation, EchoExecution types
-  cmd/compute-worker/   # D12 identity: training + research
-  cmd/services-worker/  # D12 identity: inference (Phase 7)
-  cmd/project-worker/   # D14 identity (Phase 7)
+  cmd/compute-worker/   # D12 identity: training + research. Step 01
+  cmd/services-worker/  # D12 identity: inference. Step 01, empty until Phase 7
+  cmd/project-worker/   # D14 identity. Arrives with step 40, not before
   internal/
 web/                    # React + TypeScript + Vite. D2
 deploy/                 # CRDs, RBAC, kustomize overlays
@@ -71,7 +71,9 @@ print their name and exit; `worker/go.mod` + `main.go` per identity; `web/` Vite
 **Review for.**
 - The three Python entrypoints are separate processes over one package (D4), not one process with a
   mode flag.
-- Two worker binaries exist from the start, because a Pod carries one ServiceAccount (D12).
+- Two worker binaries exist from the start — `compute-worker` and `services-worker` — because a
+  Pod carries one ServiceAccount, so D12's two workload identities cannot be one binary with a
+  mode flag (D12). `project-worker` is not created here; it arrives with step 40.
 - CI runs lint, type-check and test for all three languages and fails on any.
 
 **Done when.** `make lint test build` is green on a clean checkout.
