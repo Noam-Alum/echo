@@ -16,6 +16,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      # ------------------------------------------------------------
+      # Python
+      # ------------------------------------------------------------
+
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
@@ -28,11 +32,82 @@ jobs:
           enable-cache: true
           cache-dependency-glob: control-plane/uv.lock
 
+      - name: Install Python dependencies
+        working-directory: control-plane
+        run: uv sync --extra dev --locked
+
+      - name: Python lint
+        working-directory: control-plane
+        run: uv run --frozen ruff check .
+
+      - name: Python typecheck
+        working-directory: control-plane
+        run: uv run --frozen mypy echo tests
+
+      - name: Python tests
+        working-directory: control-plane
+        run: uv run --frozen pytest
+
+      - name: Build Python package
+        working-directory: control-plane
+        run: uv build --out-dir ../dist/python
+
+      # ------------------------------------------------------------
+      # Go
+      # ------------------------------------------------------------
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: worker/go.mod
           cache-dependency-path: worker/go.sum
+
+      - name: Download Go dependencies
+        working-directory: worker
+        run: go mod download
+
+      - name: Check Go formatting
+        working-directory: worker
+        run: |
+          unformatted="$(gofmt -l .)"
+
+          if [[ -n "$unformatted" ]]; then
+            echo "The following Go files are not formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: worker
+
+      - name: Go tests
+        working-directory: worker
+        run: go test ./...
+
+      - name: Build compute worker
+        working-directory: worker
+        run: |
+          mkdir -p ../dist/worker
+          go build \
+            -trimpath \
+            -o ../dist/worker/compute-worker \
+            ./cmd/compute-worker
+
+      - name: Build services worker
+        working-directory: worker
+        run: |
+          mkdir -p ../dist/worker
+          go build \
+            -trimpath \
+            -o ../dist/worker/services-worker \
+            ./cmd/services-worker
+
+      # ------------------------------------------------------------
+      # Web
+      # ------------------------------------------------------------
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -41,5 +116,22 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Validate
-        run: make ci
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Web lint
+        working-directory: web
+        run: npm run lint
+
+      - name: Web typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Web tests
+        working-directory: web
+        run: npm test
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
